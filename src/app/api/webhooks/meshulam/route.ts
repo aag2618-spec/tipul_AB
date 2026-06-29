@@ -10,7 +10,8 @@ import { checkRateLimit, WEBHOOK_RATE_LIMIT } from "@/lib/rate-limit";
 import {
   PLAN_NAMES,
   PERIOD_DAYS,
-  detectPeriodFromAmount as detectPeriodCentral,
+  PRICING,
+  matchAmountToPeriodMonths,
 } from "@/lib/pricing";
 import {
   fetchAndResolveSubscriptionPrice,
@@ -304,29 +305,50 @@ async function detectSuspiciousMeshulamEvent(
   return null;
 }
 
+const PERIOD_LABEL_BY_MONTHS: Record<number, string> = {
+  1: "חודשי",
+  3: "רבעוני",
+  6: "חצי שנתי",
+  12: "שנתי",
+};
+
+type DetectedPeriod = {
+  periodDays: number;
+  periodLabel: string;
+  matchedMonths: number;
+  /** מאיפה הגיעה טבלת המחירים שאליה הותאם הסכום — לדיבוג/forensics. */
+  source: string;
+};
+
 /**
- * מזהה תקופת חיוב לפי הסכום ששולם — תוך התחשבות במחיר המותאם אישית
- * של המשתמש (PricingPolicy/TierLimits) ולא רק ב-PRICING hardcoded.
+ * גוזר את תקופת המנוי המוענקת מתוך *מחיר-אמת בצד השרת*, ולא מהסכום שה-webhook
+ * מדווח על עצמו. זהו לב התיקון מפני price/amount tampering.
  *
  * הזרימה:
- *   1. resolve את המחיר המותאם של המשתמש (4 תקופות)
- *   2. exact match — איזו תקופה תואמת בדיוק לסכום?
- *   3. approximate match — סטייה של עד 5 ש"ח (עמלות אפשריות)
- *   4. fallback — detectPeriodCentral מ-PRICING hardcoded (אם הכל נכשל)
+ *   1. resolve את טבלת המחירים של המשתמש (PricingPolicy/TierLimits מ-DB).
+ *   2. מתאים את הסכום לאחת מ-4 התקופות בסבילות מחמירה (matchAmountToPeriodMonths).
+ *   3. אם ה-resolver זמין אך הסכום לא תואם אף תקופה → null (דחייה) — לא נופלים
+ *      ל-30 יום שקט כמו בעבר.
+ *   4. רק אם ה-resolver *זרק* (תקלת DB אמיתית) — fallback להתאמה מול PRICING
+ *      hardcoded, עדיין מחמיר (אין התאמה → null).
  *
- * זה מונע מצב שמשתמש עם PricingPolicy מותאם מקבל תקופה לא נכונה כי הסכום
- * שלו לא מופיע ב-PRICING hardcoded.
+ * החזרה null = הסכום אפס/שגוי/מזויף → ה-caller חייב לדחות את האירוע בלי להעניק
+ * ACTIVE. הסכום שה-webhook מדווח משמש אך ורק לבחירה בין התקופות המתומחרות
+ * בצד השרת — לא להמצאת תקופה חדשה ולא להענקת מנוי על סכום לא מוכר.
  */
-async function detectPeriodForUser(
+async function matchSubscriptionPeriod(
   userId: string,
   organizationId: string | null,
   tier: AITier,
   amount: number,
   now: Date
-): Promise<number> {
-  if (amount <= 0) {
-    return detectPeriodCentral(tier, amount);
+): Promise<DetectedPeriod | null> {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return null;
   }
+
+  let months: number | null = null;
+  let source = "RESOLVER";
   try {
     const resolved = await fetchAndResolveSubscriptionPrice({
       userId,
@@ -334,28 +356,73 @@ async function detectPeriodForUser(
       planTier: tier,
       now,
     });
-    // exact match
-    for (const months of PERIOD_MONTHS) {
-      if (getPriceForPeriod(resolved, months) === amount) {
-        return PERIOD_DAYS[months] || 30;
-      }
-    }
-    // approximate match (עד 5 ש"ח סטייה)
-    for (const months of PERIOD_MONTHS) {
-      if (Math.abs(getPriceForPeriod(resolved, months) - amount) <= 5) {
-        return PERIOD_DAYS[months] || 30;
-      }
-    }
+    source = resolved.source;
+    months = matchAmountToPeriodMonths(
+      PERIOD_MONTHS.map((m) => ({ months: m, price: getPriceForPeriod(resolved, m) })),
+      amount
+    );
+    // ה-resolver הצליח — ההחלטה שלו סופית. אם months===null נדחה למטה,
+    // לא נופלים ל-fallback (זה לא תקלת DB אלא סכום שלא תואם מחיר-אמת).
   } catch (priceError) {
-    logger.warn("[meshulam] period detection via resolver failed, using hardcoded fallback", {
-      userId,
-      tier,
-      amount,
-      error: priceError instanceof Error ? priceError.message : String(priceError),
+    logger.warn(
+      "[meshulam] period resolver failed — falling back to hardcoded PRICING match",
+      {
+        userId,
+        tier,
+        amount,
+        error: priceError instanceof Error ? priceError.message : String(priceError),
+      }
+    );
+    const tierPricing = PRICING[tier];
+    if (tierPricing) {
+      months = matchAmountToPeriodMonths(
+        PERIOD_MONTHS.map((m) => ({ months: m, price: tierPricing[m] })),
+        amount
+      );
+      source = "FALLBACK";
+    }
+  }
+
+  if (months === null) return null;
+  return {
+    periodDays: PERIOD_DAYS[months] || 30,
+    periodLabel: PERIOD_LABEL_BY_MONTHS[months] || "חודשי",
+    matchedMonths: months,
+    source,
+  };
+}
+
+/**
+ * דוחה אירוע מנוי שסכומו אינו תואם אף תקופת מחיר ידועה — לוג + adminAlert.
+ * נקרא כש-matchSubscriptionPeriod החזיר null (סכום אפס/שגוי/מזויף). מבטיח
+ * visibility ל-forensics בדיוק כמו שאר ה-suspect cases ב-verifyMeshulamSubscriptionUser.
+ */
+async function rejectUnpricedSubscriptionEvent(
+  user: VerifiedMeshulamUser,
+  eventType: MeshulamSubEventType,
+  amount: number | undefined,
+  clientIp: string
+): Promise<void> {
+  logger.error(
+    "[meshulam] subscription event rejected — amount does not match any expected price",
+    { userId: user.id, eventType, amount, tier: user.aiTier, clientIp }
+  );
+  try {
+    await prisma.adminAlert.create({
+      data: {
+        userId: user.id,
+        type: "SYSTEM",
+        title: "🚨 webhook מנוי נדחה — סכום לא תואם מחיר",
+        message: `אירוע ${eventType} נדחה: הסכום ₪${amount ?? 0} אינו תואם אף תקופת מחיר ידועה (tier=${user.aiTier}). חשד ל-amount tampering / סוד שדלף. IP=${clientIp}`,
+        priority: "HIGH",
+      },
+    });
+  } catch (alertErr) {
+    logger.error("[meshulam] failed to create unpriced-event adminAlert", {
+      userId: user.id,
+      error: alertErr instanceof Error ? alertErr.message : String(alertErr),
     });
   }
-  // Fallback ל-PRICING hardcoded (זוהי הלוגיקה הישנה)
-  return detectPeriodCentral(tier, amount);
 }
 
 export const dynamic = "force-dynamic";
@@ -644,15 +711,22 @@ async function handlePaymentSuccess(
     if (!verifiedUser) {
       return;
     }
-    const periodDays = await detectPeriodForUser(
+    // ── אימות סכום מול מחיר-אמת בצד השרת (anti amount-tampering) ──
+    // התקופה נגזרת מהתאמת הסכום לטבלת המחירים של המשתמש, לא מהסכום כמספר חופשי.
+    // סכום אפס/שגוי/לא-תואם → דחייה (לא הענקת מנוי).
+    const detected = await matchSubscriptionPeriod(
       verifiedUser.id,
       verifiedUser.organizationId,
       verifiedUser.aiTier,
-      amount || 0,
+      amount ?? 0,
       new Date()
     );
+    if (!detected) {
+      await rejectUnpricedSubscriptionEvent(verifiedUser, "payment_success", amount, clientIp);
+      return;
+    }
+    const { periodDays, periodLabel } = detected;
     const periodMs = periodDays * 24 * 60 * 60 * 1000;
-    const periodLabel = periodDays <= 31 ? "חודשי" : periodDays <= 91 ? "רבעוני" : periodDays <= 181 ? "חצי שנתי" : "שנתי";
 
     // עוטפים ב-transaction כדי שקריאת blockReason ועדכונו יהיו אטומיים —
     // מונע race עם PATCH אדמין שמשנה blockReason באותו רגע.
@@ -923,15 +997,20 @@ async function handleSubscriptionCreated(
   );
   if (!verifiedUser) return;
 
-  const periodDays = await detectPeriodForUser(
+  // ── אימות סכום מול מחיר-אמת בצד השרת (anti amount-tampering) ──
+  const detected = await matchSubscriptionPeriod(
     verifiedUser.id,
     verifiedUser.organizationId,
     verifiedUser.aiTier,
-    amount || 0,
+    amount ?? 0,
     new Date()
   );
+  if (!detected) {
+    await rejectUnpricedSubscriptionEvent(verifiedUser, "created", amount, clientIp);
+    return;
+  }
+  const { periodDays, periodLabel } = detected;
   const periodMs = periodDays * 24 * 60 * 60 * 1000;
-  const periodLabel = periodDays <= 31 ? "חודשי" : periodDays <= 91 ? "רבעוני" : periodDays <= 181 ? "חצי שנתי" : "שנתי";
 
   // עוטפים ב-transaction כדי שקריאת blockReason ועדכון יהיו אטומיים
   // (מונע race עם PATCH אדמין שמשנה blockReason באותו זמן).
@@ -1042,16 +1121,21 @@ async function handleSubscriptionRenewed(
   // בצורה אטומית מול PATCH אדמין מקביל.
   const user = verifiedUser;
 
-  // קריאת detect מחוץ ל-tx — DB query של ה-resolver לא תאריך את ה-lock.
-  const periodDays = await detectPeriodForUser(
+  // ── אימות סכום מול מחיר-אמת בצד השרת (anti amount-tampering) ──
+  // קריאה מחוץ ל-tx — DB query של ה-resolver לא תאריך את ה-lock.
+  const detected = await matchSubscriptionPeriod(
     user.id,
     user.organizationId,
     user.aiTier,
-    amount || 0,
+    amount ?? 0,
     new Date()
   );
+  if (!detected) {
+    await rejectUnpricedSubscriptionEvent(user, "renewed", amount, clientIp);
+    return;
+  }
+  const { periodDays, periodLabel } = detected;
   const periodMs = periodDays * 24 * 60 * 60 * 1000;
-  const periodLabel = periodDays <= 31 ? "חודשי" : periodDays <= 91 ? "רבעוני" : periodDays <= 181 ? "חצי שנתי" : "שנתי";
 
   // עוטפים בעדכון תוך-tx — מבטיח שקריאת blockReason ועדכון אטומיים מול
   // PATCH אדמין שעלול לרוץ במקביל.

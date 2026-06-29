@@ -74,16 +74,61 @@ export function getAverageMonthlyPrice(plan: string, months: number): number {
 export function detectPeriodFromAmount(tier: string, amount: number): number {
   const tierPricing = PRICING[tier];
   if (!tierPricing) return 30;
-  
+
   // חיפוש התאמה מדויקת
   for (const [months, price] of Object.entries(tierPricing)) {
     if (price === amount) return PERIOD_DAYS[Number(months)] || 30;
   }
-  
+
   // חיפוש התאמה קרובה (סטייה של עד ₪5 - בגלל עמלות אפשריות)
   for (const [months, price] of Object.entries(tierPricing)) {
     if (Math.abs(price - amount) <= 5) return PERIOD_DAYS[Number(months)] || 30;
   }
-  
+
   return 30; // ברירת מחדל
+}
+
+/** שורת מחיר לתקופה — משמשת להתאמת סכום ששולם לתקופת חיוב. */
+export type PeriodPrice = { months: number; price: number | null | undefined };
+
+/**
+ * מתאים סכום ששולם לאחת מתקופות המחיר הידועות, בסבילות מחמירה.
+ *
+ * ההבדל המהותי מ-detectPeriodFromAmount: שם היעדר התאמה נופל ל-30 יום כברירת
+ * מחדל — כאן היעדר התאמה מחזיר null, כדי שה-caller יוכל *לדחות* את האירוע במקום
+ * להעניק מנוי על סמך סכום לא מוכר. זוהי הגנה מפני price/amount tampering ב-webhook
+ * (תרחיש: סוד ה-webhook דלף ותוקף שולח סכום אפס/שרירותי כדי לקבל מנוי פעיל,
+ * או סכום שממפה לתקופה ארוכה כדי להאריך את המנוי בלי חיוב אמיתי תואם).
+ *
+ * @param prices רשימת תקופות עם המחיר הצפוי לכל אחת — ממקור-אמת בצד השרת
+ *   (PricingPolicy/TierLimits דרך ה-resolver, או PRICING hardcoded כ-fallback).
+ * @param amount הסכום שה-webhook דיווח עליו.
+ * @param toleranceIls סבילות בש"ח (ברירת מחדל 2 — מחמיר; ערך היסטורי היה 5).
+ * @returns מספר החודשים התואם (1/3/6/12), או null אם הסכום אינו תקין/לא תואם.
+ */
+export function matchAmountToPeriodMonths(
+  prices: PeriodPrice[],
+  amount: number,
+  toleranceIls = 2
+): number | null {
+  // אפס/שלילי/לא-מספר = לעולם לא להעניק מנוי. (לפני: נפל שקט ל-30 יום.)
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+
+  // התאמה מדויקת קודם
+  for (const { months, price } of prices) {
+    if (typeof price === "number" && Number.isFinite(price) && price === amount) {
+      return months;
+    }
+  }
+  // התאמה מקורבת בסבילות מחמירה (עיגול/הפרשים זעירים בלבד)
+  for (const { months, price } of prices) {
+    if (
+      typeof price === "number" &&
+      Number.isFinite(price) &&
+      Math.abs(price - amount) <= toleranceIls
+    ) {
+      return months;
+    }
+  }
+  return null;
 }

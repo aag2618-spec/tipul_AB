@@ -31,7 +31,7 @@ export function PaymentSummaryView({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* מלבן חוב/קרדיט - לחיץ */}
         <Card
-          className="cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02] bg-gradient-to-br from-red-50 to-orange-50 border-red-200"
+          className="cursor-pointer hover:shadow-md transition-all bg-gradient-to-br from-red-50 to-orange-50 border-red-200"
           onClick={onViewClients}
         >
           <CardContent className="p-6">

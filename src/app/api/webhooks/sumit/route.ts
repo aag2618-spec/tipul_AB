@@ -5,7 +5,6 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { verifySumitWebhook, SumitWebhookPayload } from "@/lib/sumit";
 import { logger } from "@/lib/logger";
-import { invalidateJwtCache } from "@/lib/auth";
 import { completeWebhookPayment } from "@/lib/payments/receipt-service";
 import { verifyPaymentByExternalId } from "@/lib/webhook-verification";
 import { checkRateLimit, WEBHOOK_RATE_LIMIT } from "@/lib/rate-limit";
@@ -18,6 +17,74 @@ import {
 } from "@/lib/webhook-replay-protection";
 
 export const dynamic = "force-dynamic";
+
+type SumitSubEventType = "payment_success" | "payment_failed";
+
+/**
+ * דחיית אירוע מנוי לא צפוי מ-Sumit (anti-privilege-escalation).
+ *
+ * רקע אבטחה — חשוב להבין למה דוחים ולא "מאמתים":
+ * מנוי-התוכנה במערכת עובר **תמיד דרך Cardcom** (ראה /api/subscription/create).
+ * Sumit משמש אך ורק לסליקת תשלומי מטופלים. לכן payment.success/failed שאינו
+ * תשלום-מטופל (verifyPaymentByExternalId החזיר null) לא אמור להגיע כלל.
+ *
+ * הקוד הקודם כאן העניק אוטומטית subscriptionStatus=ACTIVE ל-30 יום ושחרר חשבון
+ * חסום (DEBT/legacy) לפי Customer.Email בלבד, כשההגנה היחידה הייתה חתימת HMAC.
+ * אם SUMIT_WEBHOOK_SECRET דולף → תוקף מזייף בקשה חתומה עם מייל קורבן ומשחרר/
+ * מעניק מנוי בלי תשלום.
+ *
+ * ⚠️ למה לא העתקנו את ה-binding של Meshulam (verifyMeshulamSubscriptionUser):
+ * שם ה-binding מגן כי הזרם הלגיטימי (subscription.created) קושר את ה-customerId
+ * האמיתי ל-User *לפני* שתוקף מגיע. ב-Sumit אין שום זרם מנוי לגיטימי, ולכן
+ * שדה ה-binding תמיד היה ריק כשהתוקף מגיע — התוקף פשוט היה קושר ערך משלו
+ * (כל ח.פ/מזהה) ועובר. כלומר binding כאן נותן ביטחון-שווא. ההגנה היחידה
+ * האפקטיבית היא לא להעניק מנוי/שחרור מ-Sumit כלל.
+ *
+ * אם בעתיד יופעל מנוי-תוכנה דרך Sumit — יש לממש אימות בעלות אמיתי (מזהה יציב
+ * שנקבע ביצירת המנוי ונשמר אצלנו, בדומה ל-customFields.paymentId במסלול המטופל),
+ * ולא להסתמך על Customer.Email.
+ */
+async function rejectUnexpectedSumitSubscriptionEvent(
+  customerEmail: string | undefined,
+  eventType: SumitSubEventType,
+  clientIp: string
+): Promise<void> {
+  logger.warn(
+    "[sumit] non-patient payment event ignored — Sumit subscriptions are not supported",
+    { eventType, clientIp }
+  );
+
+  // אם המייל תואם משתמש קיים — זהו אירוע מנוי לא צפוי (כולל ניסיון זיוף אם
+  // ה-secret דלף). מתריעים לאדמין ל-forensics, בלי לבצע שום שינוי במנוי/חסימה.
+  if (!customerEmail || typeof customerEmail !== "string") return;
+  const normalizedEmail = customerEmail.toLowerCase().trim();
+  let user: { id: string } | null = null;
+  try {
+    user = await prisma.user.findFirst({
+      where: { email: normalizedEmail },
+      select: { id: true },
+    });
+  } catch {
+    return; // lookup נכשל — לא חוסם את שאר ה-webhook
+  }
+  if (!user) return;
+
+  try {
+    await prisma.adminAlert.create({
+      data: {
+        userId: user.id,
+        type: "SYSTEM",
+        title: "🚨 אירוע מנוי לא צפוי מ-Sumit — נדחה",
+        message:
+          `התקבל ${eventType} דרך Sumit שאינו תשלום-מטופל. מנוי-התוכנה עובר רק ` +
+          `דרך Cardcom — האירוע נדחה ללא שינוי במנוי/חסימה. IP=${clientIp}`,
+        priority: "HIGH",
+      },
+    });
+  } catch {
+    /* best effort */
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,7 +109,10 @@ export async function POST(request: NextRequest) {
 
     // Rate limiting per-IP — מקביל ל-Meshulam, מגן מפני flooding גם אם ה-secret דלף.
     const clientIp = request.headers.get("x-forwarded-for") || "unknown";
-    const rateCheck = checkRateLimit(`webhook:sumit:${clientIp}`, WEBHOOK_RATE_LIMIT);
+    // sanitize ל-clientIp לפני logger/adminAlert — x-forwarded-for יכול להכיל
+    // chain או injection. נחתוך ל-first hop ול-64 תווים (עקבי עם Meshulam).
+    const safeClientIp = clientIp.split(",")[0].trim().slice(0, 64) || "unknown";
+    const rateCheck = checkRateLimit(`webhook:sumit:${safeClientIp}`, WEBHOOK_RATE_LIMIT);
     if (!rateCheck.allowed) {
       return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
@@ -84,10 +154,10 @@ export async function POST(request: NextRequest) {
     try {
       switch (payload.Event) {
         case "payment.success":
-          await handlePaymentSuccess(payload);
+          await handlePaymentSuccess(payload, safeClientIp);
           break;
         case "payment.failed":
-          await handlePaymentFailed(payload);
+          await handlePaymentFailed(payload, safeClientIp);
           break;
         case "document.created":
           await handleDocumentCreated(payload);
@@ -128,7 +198,10 @@ export async function POST(request: NextRequest) {
 /**
  * טיפול בתשלום מוצלח
  */
-async function handlePaymentSuccess(payload: SumitWebhookPayload) {
+async function handlePaymentSuccess(
+  payload: SumitWebhookPayload,
+  clientIp: string
+) {
   const { PaymentID, Amount, DocumentURL, Customer } = payload;
 
   // ── אימות בעלות + lookup atomic ──
@@ -246,73 +319,24 @@ async function handlePaymentSuccess(payload: SumitWebhookPayload) {
     // Send receipt email + complete COLLECT_PAYMENT task
     await completeWebhookPayment(verified.paymentId);
   } else if (Customer?.Email) {
-    // אולי זה תשלום מנוי. עוטפים ב-tx כדי שקריאת blockReason ועדכון יהיו
-    // אטומיים מול PATCH אדמין שעלול לרוץ במקביל.
-    const txResult = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.findFirst({
-        where: { email: Customer.Email },
-      });
-      if (!user) return null;
-
-      // auto-unblock רק על DEBT או חסימה ישנה (legacy null — נחסמו לפני הוספת
-      // השדה, כולן היסטורית על חוב). TOS/MANUAL נשארים חסומים.
-      const isLegacyOrDebt =
-        user.blockReason === "DEBT" || user.blockReason === null;
-      const shouldUnblock = user.isBlocked && isLegacyOrDebt;
-      await tx.user.update({
-        where: { id: user.id },
-        data: {
-          subscriptionStatus: "ACTIVE",
-          subscriptionStartedAt: user.subscriptionStartedAt || new Date(),
-          subscriptionEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          ...(shouldUnblock && {
-            isBlocked: false,
-            blockReason: null,
-            blockedAt: null,
-            blockedBy: null,
-          }),
-        },
-      });
-
-      return { user, shouldUnblock };
-    });
-
-    if (txResult) {
-      const { user, shouldUnblock } = txResult;
-
-      // M10.2: סוגרים חלון של 30s ב-JWT cache (subscriptionStatus/isBlocked שונו).
-      invalidateJwtCache(user.id);
-
-      if (shouldUnblock) {
-        logger.info("[sumit] auto-unblock on subscription payment (DEBT)", { userId: user.id });
-      } else if (user.isBlocked) {
-        logger.info("[sumit] payment received but user stays blocked (non-DEBT)", {
-          userId: user.id,
-          blockReason: user.blockReason,
-        });
-      }
-
-      await prisma.subscriptionPayment.create({
-        data: {
-          userId: user.id,
-          amount: Amount || 0,
-          currency: "ILS",
-          status: "PAID",
-          description: "תשלום מנוי חודשי",
-          invoiceUrl: DocumentURL,
-          periodStart: new Date(),
-          periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          paidAt: new Date(),
-        },
-      });
-    }
+    // לא נמצא תשלום-מטופל תואם → זהו אירוע מנוי לא צפוי. מנוי-התוכנה עובר רק
+    // דרך Cardcom; דוחים ולא מעניקים מנוי/שחרור (ראה ההסבר המלא ב-
+    // rejectUnexpectedSumitSubscriptionEvent).
+    await rejectUnexpectedSumitSubscriptionEvent(
+      Customer.Email,
+      "payment_success",
+      clientIp
+    );
   }
 }
 
 /**
  * טיפול בתשלום שנכשל
  */
-async function handlePaymentFailed(payload: SumitWebhookPayload) {
+async function handlePaymentFailed(
+  payload: SumitWebhookPayload,
+  clientIp: string
+) {
   const { PaymentID, ErrorMessage, Customer } = payload;
 
   // ── אימות בעלות + lookup atomic ──
@@ -351,33 +375,14 @@ async function handlePaymentFailed(payload: SumitWebhookPayload) {
       },
     });
   } else if (Customer?.Email) {
-    // תשלום מנוי שנכשל
-    const user = await prisma.user.findFirst({
-      where: { email: Customer.Email },
-    });
-
-    if (user) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          subscriptionStatus: "PAST_DUE",
-        },
-      });
-
-      // M10.2: סוגרים חלון של 30s — אחרת המשתמש יקבל subscriptionStatus="ACTIVE"
-      // ב-cache עד שה-cache פג, וזה נותן לו גישה לתכונות בתשלום שגויה.
-      invalidateJwtCache(user.id);
-
-      await prisma.adminAlert.create({
-        data: {
-          userId: user.id,
-          type: "PAYMENT_FAILED",
-          title: "תשלום מנוי נכשל",
-          message: `תשלום מנוי נכשל עבור ${user.name}: ${ErrorMessage}`,
-          priority: "HIGH",
-        },
-      });
-    }
+    // לא נמצא תשלום-מטופל תואם → אירוע מנוי לא צפוי מ-Sumit. תוקף שיודע מייל
+    // יכול היה לכפות PAST_DUE + התראה מטעה על משתמש אחר. דוחים ולא משנים
+    // subscriptionStatus (ראה rejectUnexpectedSumitSubscriptionEvent).
+    await rejectUnexpectedSumitSubscriptionEvent(
+      Customer.Email,
+      "payment_failed",
+      clientIp
+    );
   }
 }
 

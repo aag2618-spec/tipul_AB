@@ -294,6 +294,21 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(verifyUrl);
   }
 
+  // force-setup gate (2026-06-29): משתמש (כל תפקיד) שאין לו 2FA מופעל חייב
+  // להקים אותו לפני גישה מלאה. ל-API: 403 JSON. לדפים: redirect ל-/auth/2fa-setup.
+  // אין סכנת לולאה: /auth/* ו-/api/auth/* לא נכנסים ל-pathShouldRunProxy, כך
+  // שדף ההקמה ונתיבי ההקמה (/api/auth/2fa/*) נגישים גם כשהדגל דלוק.
+  if (token?.requires2FASetup === true) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json(
+        { message: "נדרשת הפעלת אימות דו-שלבי" },
+        { status: 403 }
+      );
+    }
+    const setupUrl = new URL("/auth/2fa-setup", request.url);
+    return NextResponse.redirect(setupUrl);
+  }
+
   // H1: isBlocked gate ל-API. ה-middleware בודק כבר את isBlocked לדפי
   // dashboard בהמשך, אבל ה-API צריך הגנה מקבילה — אחרת משתמש חסום
   // עם cookie תקף יוכל להמשיך לקרוא לAPI ישירות.

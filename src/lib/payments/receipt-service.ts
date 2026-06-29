@@ -682,7 +682,18 @@ export async function sendPaymentReceiptEmail(params: {
     const commSettings = await prisma.communicationSetting.findUnique({
       where: { userId: params.userId },
     });
-    if (commSettings?.sendPaymentReceipt === false) return;
+    // שני המתגים שבמסך ("שלח קבלה למטופל" / "שלח עותק אלי") הם מקור האמת
+    // היחיד. הדגל הישן sendPaymentReceipt היה "דגל-על" נפרד ששליטתו לא
+    // סונכרנה תמיד עם המתגים: רשומות ותיקות נשמרו עם sendReceiptToClient=true
+    // (מתג דלוק) אבל sendPaymentReceipt=false (ברירת המחדל) — וכך המתג נראה
+    // דלוק אך שום קבלה לא יצאה. לכן לא מסתמכים עליו יותר; עוצרים רק אם *שני*
+    // היעדים כובו במפורש. (העמודה נשארת ב-DB לתאימות לאחור אך אינה משפיעה.)
+    if (
+      commSettings?.sendReceiptToClient === false &&
+      commSettings?.sendReceiptToTherapist === false
+    ) {
+      return;
+    }
 
     const therapist = await prisma.user.findUnique({
       where: { id: params.userId },

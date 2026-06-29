@@ -258,7 +258,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     logger.error("Resend webhook error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "Error processing webhook", error: String(error) },
+      { message: "Error processing webhook" },
       { status: 200 }
     );
   }

@@ -76,7 +76,7 @@ export function ReportsView({ data }: { data: ReportData }) {
     <Card
       key={card.id}
       className={cn(
-        "cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02]",
+        "cursor-pointer transition-all duration-200 hover:shadow-md",
         activeCard === card.id ? "ring-2 ring-primary/40 shadow-md" : ""
       )}
       onClick={() => setActiveCard(card.id)}

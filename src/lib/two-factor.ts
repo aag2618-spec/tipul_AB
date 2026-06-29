@@ -90,43 +90,38 @@ export function isTwoFactorVerifiedForLogin(
   return verifiedForLoginAt.getTime() === tokenLoginAt;
 }
 
-// 2FA נדרש רק לאנשי צוות (USER/MANAGER/ADMIN/CLINIC_OWNER/CLINIC_SECRETARY),
-// כשהפעילות האחרונה הייתה לפני יותר מ-3 שעות או שאין פעילות בכלל (כניסה ראשונה).
+// כל אנשי הצוות הם בעלי תפקיד (USER/MANAGER/ADMIN/CLINIC_OWNER/CLINIC_SECRETARY),
+// וכולם חייבים 2FA — ללא יוצא מן הכלל (החלטת מדיניות 2026-06-29).
+const STAFF_ROLES = new Set([
+  "USER",
+  "MANAGER",
+  "ADMIN",
+  "CLINIC_OWNER",
+  "CLINIC_SECRETARY",
+]);
+
+function isStaffRole(role: string): boolean {
+  return STAFF_ROLES.has(role);
+}
+
+// requires2FA = "צריך לאמת קוד עכשיו" — חל רק כשה-2FA *כבר מופעל*.
+// אי אפשר לאמת קוד למי שלא הקים 2FA — את האכיפה של ההקמה עושה requires2FASetup
+// (שער ה-onboarding ב-proxy). לכן כאן מחזירים false כש-!twoFactorEnabled.
 //
-// Stage 2.0 hardening (security review #14):
-//   • ADMIN ו-CLINIC_OWNER — תפקידים בכירים עם גישה רחבה. אצלם 2FA מופעל
-//     בכל login (גם אם הפעילות האחרונה הייתה לפני שעה), כדי לצמצם חלון
-//     הזדמנות אחרי גניבת קוקי. הגרציה של 3 שעות לא חלה עליהם.
-//   • ADMIN/CLINIC_OWNER ללא twoFactorEnabled — נכנסים בלוג אזהרה (כדי שאדמין
-//     ראשי יראה ויתעדף הפעלת 2FA), אבל login לא נחסם — אחרת חשבונות שטרם
-//     הפעילו 2FA יינעלו. UX של "force-setup" דורש דף onboarding ייעודי
-//     ויטופל בנפרד.
-//   • USER/MANAGER/CLINIC_SECRETARY — מתנהגים כפי שהיה: 2FA רק אם מופעל
-//     ורק אחרי 3 שעות חוסר פעילות.
+// תדירות האתגר:
+//   • ADMIN/CLINIC_OWNER — בכל login (תפקיד בכיר, גישה רחבה ל-PHI + impersonation).
+//   • USER/MANAGER/CLINIC_SECRETARY — רק אחרי 3 שעות חוסר פעילות (או כניסה ראשונה).
 export function requires2FA(user: {
   role: string;
   twoFactorEnabled: boolean;
   lastActivityAt: Date | null;
 }): boolean {
-  const isStaff =
-    user.role === "USER" ||
-    user.role === "MANAGER" ||
-    user.role === "ADMIN" ||
-    user.role === "CLINIC_OWNER" ||
-    user.role === "CLINIC_SECRETARY";
-  if (!isStaff) return false;
+  if (!isStaffRole(user.role)) return false;
+
+  // 2FA לא מופעל → אין מה לאמת; את ההקמה אוכף requires2FASetup.
+  if (!user.twoFactorEnabled) return false;
 
   const isSeniorRole = user.role === "ADMIN" || user.role === "CLINIC_OWNER";
-
-  if (!user.twoFactorEnabled) {
-    if (isSeniorRole) {
-      logger.warn("[2FA] senior role logged in without 2FA enabled — operator should enable", {
-        role: user.role,
-      });
-    }
-    return false;
-  }
-
   if (isSeniorRole) {
     return true;
   }
@@ -134,6 +129,21 @@ export function requires2FA(user: {
   if (!user.lastActivityAt) return true;
   const elapsed = Date.now() - new Date(user.lastActivityAt).getTime();
   return elapsed > INACTIVITY_THRESHOLD_MS;
+}
+
+// requires2FASetup = "חייב להקים 2FA לפני גישה מלאה" (force-setup gate).
+// חל על כל אנשי הצוות שאצלם 2FA אינו מופעל. מצב זה בלעדי ל-requires2FA
+// (שמחייב twoFactorEnabled=true). השער עצמו (redirect ל-/auth/2fa-setup
+// + 403 ל-API) נאכף ב-proxy.ts; כאן רק ההחלטה הטהורה.
+//
+// הערה: twoFactorEnabled מוגדר @default(true) ב-schema, כך שבפועל זה חל רק על
+// משתמשים שכיבו ידנית את ה-2FA — לא על משתמשים חדשים.
+export function requires2FASetup(user: {
+  role: string;
+  twoFactorEnabled: boolean;
+}): boolean {
+  if (!isStaffRole(user.role)) return false;
+  return !user.twoFactorEnabled;
 }
 
 export type SendCodeResult =
