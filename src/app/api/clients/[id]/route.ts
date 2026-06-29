@@ -15,6 +15,7 @@ import {
   secretaryCan,
 } from "@/lib/scope";
 import { loadScopeUserWithMode } from "@/lib/secretary-mode";
+import { deleteDocumentFiles, collectCommunicationAttachmentFiles } from "@/lib/document-files";
 
 export const dynamic = "force-dynamic";
 
@@ -496,7 +497,48 @@ export async function DELETE(
       return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
     }
 
-    await prisma.client.delete({ where: { id } });
+    // זכות להישכח / צמצום מידע: לפני מחיקת המטופל שולפים את כל מסמכיו (id+fileUrl)
+    // כדי שנוכל למחוק גם את קבצי ה-PHI מהאחסון. שורות ה-Document לבדן אינן מוחקות
+    // את הקבצים הפיזיים (טפסי אינטייק סרוקים עם ת.ז., מסמכים רפואיים), והם היו
+    // נשארים נגישים לנצח באחסון. בנוסף, הרלציה Document→Client היא SetNull — בלי
+    // deleteMany מפורש שורות ה-Document היו נשארות יתומות (clientId=null) ומצביעות
+    // לקבצים שכבר אין להם בעלים. clientId ייחודי למטופל זה (שכבר אומת ב-scope).
+    const clientDocuments = await prisma.document.findMany({
+      where: { clientId: id },
+      select: { id: true, fileUrl: true },
+    });
+
+    // צרופות מייל שנשלחו (sent/<clientId>/...) נשמרות ב-CommunicationLog.attachments
+    // (JSON) ולא כרשומת Document — לכן צריך לשלוף אותן בנפרד כדי למחוק את הקבצים.
+    // הרלציה היא SetNull, כך שהשורות שורדות; כאן אנחנו רק מנקים את קבצי ה-PHI.
+    const clientCommLogs = await prisma.communicationLog.findMany({
+      where: { clientId: id },
+      select: { id: true, attachments: true },
+    });
+    const commAttachmentFiles = collectCommunicationAttachmentFiles(clientCommLogs);
+
+    // מחיקת שורות ה-Document של המטופל יחד עם המטופל — יחידה אטומית אחת.
+    await prisma.$transaction([
+      prisma.document.deleteMany({ where: { clientId: id } }),
+      prisma.client.delete({ where: { id } }),
+    ]);
+
+    // מחיקת הקבצים הפיזיים — אחרי שמחיקת ה-DB הצליחה (best-effort, לא חוסם).
+    // קבצים ששרדו (כשל אחסון) ייתפסו ע"י cron ה-orphan-cleanup כרשת ביטחון.
+    const filesToDelete = [...clientDocuments, ...commAttachmentFiles];
+    if (filesToDelete.length > 0) {
+      const fileResult = await deleteDocumentFiles(filesToDelete, {
+        reason: "client-delete",
+        clientId: id,
+        userId,
+      });
+      logger.info("[clients/DELETE] purged client PHI files from storage", {
+        clientId: id,
+        documents: clientDocuments.length,
+        commAttachments: commAttachmentFiles.length,
+        ...fileResult,
+      });
+    }
 
     // Audit log — מחיקה היא פעולה הרסנית. רושמים מי מחק, את מי, ומתי.
     // שומרים גם את שם המטופל ב-meta כי הרשומה כבר לא קיימת ב-DB אחרי המחיקה.

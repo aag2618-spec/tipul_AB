@@ -7,28 +7,9 @@ import { logDataAccess } from "@/lib/audit-logger";
 import { loadScopeUser, buildDocumentWhere } from "@/lib/scope";
 import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import storage from "@/lib/storage";
+import { fileUrlToRelative } from "@/lib/document-files";
 import { parseBody } from "@/lib/validations/helpers";
 import { updateDocumentSchema } from "@/lib/validations/document";
-
-// C6: ממיר fileUrl שמור ב-DB ל-relative path בתוך UPLOADS_DIR.
-// פורמטים מותרים: "/api/uploads/<rel>" או "/uploads/<rel>". כל אחר נדחה
-// כדי למנוע path-traversal דרך רשומת DB מזויפת. storage.delete מאמת
-// בנוסף שה-resolve מסתיים בתוך baseDir.
-function fileUrlToRelative(fileUrl: string | null | undefined): string | null {
-  if (!fileUrl || typeof fileUrl !== "string") return null;
-  const prefixes = ["/api/uploads/", "/uploads/"];
-  for (const p of prefixes) {
-    if (fileUrl.startsWith(p)) {
-      const rel = fileUrl.slice(p.length);
-      // חסימת תווי traversal בסיסיים (defense-in-depth מעבר ל-storage)
-      if (rel.includes("..") || rel.startsWith("/") || rel.startsWith("\\")) {
-        return null;
-      }
-      return rel;
-    }
-  }
-  return null;
-}
 
 export const dynamic = "force-dynamic";
 

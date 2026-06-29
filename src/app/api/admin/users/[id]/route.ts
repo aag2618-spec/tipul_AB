@@ -11,6 +11,7 @@ import { escapeHtml } from "@/lib/email-utils";
 import { requirePermission, requireHighestPermission } from "@/lib/api-auth";
 import type { Permission } from "@/lib/permissions";
 import { invalidateJwtCache } from "@/lib/auth";
+import { deleteDocumentFiles, collectCommunicationAttachmentFiles } from "@/lib/document-files";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -348,7 +349,27 @@ export async function DELETE(
       select: { email: true, name: true, role: true, userNumber: true },
     });
 
-    // מחיקה + audit log כיחידה אטומית
+    // זכות להישכח / צמצום מידע: מחיקת המשתמש מבצעת cascade על שורות ה-Document
+    // (therapistId onDelete: Cascade) — אבל קבצי ה-PHI עצמם נשארים באחסון, וגרוע
+    // יותר, אחרי ה-cascade אין אפילו שורה שמצביעה אליהם. לכן שולפים את כל
+    // קבצי המסמכים של המטפל (id+fileUrl) **לפני** המחיקה, כדי שנוכל למחוק אותם
+    // מהאחסון. שולף לפי therapistId — מכסה גם מסמכי מטופלים (שיורשים את המטפל
+    // וייעלמו ב-cascade) וגם templates כלליים (clientId=null).
+    const userDocuments = await prisma.document.findMany({
+      where: { therapistId: id },
+      select: { id: true, fileUrl: true },
+    });
+
+    // צרופות מייל שהמשתמש שלח (sent/<clientId>/...) נשמרות ב-CommunicationLog.attachments
+    // (JSON, לא Document). הרלציה userId היא SetNull (השורה שורדת), אבל קבצי ה-PHI
+    // צריכים להימחק. שולפים לפי userId לפני המחיקה.
+    const userCommLogs = await prisma.communicationLog.findMany({
+      where: { userId: id },
+      select: { id: true, attachments: true },
+    });
+    const commAttachmentFiles = collectCommunicationAttachmentFiles(userCommLogs);
+
+    // מחיקה + audit log כיחידה אטומית (ה-cascade מוחק את שורות ה-Document)
     await withAudit(
       { kind: "user", session },
       {
@@ -363,6 +384,23 @@ export async function DELETE(
         return tx.user.delete({ where: { id } });
       }
     );
+
+    // מחיקת קבצי ה-PHI מהאחסון — אחרי שמחיקת ה-DB הצליחה (best-effort, לא חוסם).
+    // קבצים ששרדו (כשל אחסון) ייתפסו ע"י cron ה-orphan-cleanup כרשת ביטחון.
+    const filesToDelete = [...userDocuments, ...commAttachmentFiles];
+    if (filesToDelete.length > 0) {
+      const fileResult = await deleteDocumentFiles(filesToDelete, {
+        reason: "user-delete",
+        targetUserId: id,
+        performedBy: userId,
+      });
+      logger.info("[admin/users/DELETE] purged user PHI files from storage", {
+        targetUserId: id,
+        documents: userDocuments.length,
+        commAttachments: commAttachmentFiles.length,
+        ...fileResult,
+      });
+    }
 
     return NextResponse.json({
       message: "המשתמש נמחק בהצלחה"
