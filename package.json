@@ -78,7 +78,7 @@
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
     "exceljs": "^4.4.0",
-    "googleapis": "^170.1.0",
+    "googleapis": "^172.0.0",
     "html2canvas": "^1.4.1",
     "isomorphic-dompurify": "^3.14.0",
     "jspdf": "^4.2.1",
