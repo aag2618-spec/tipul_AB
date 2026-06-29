@@ -220,6 +220,29 @@ describe("POST /api/admin/cardcom/refund — partial vs full", () => {
     expect(updateCall.data.status).toBe("APPROVED");
   });
 
+  it("keeps transaction APPROVED when a partial refund leaves a sub-cent balance (99.99 on 100.00)", async () => {
+    // יתרה של 0.01 עדיין פתוחה — אסור לסמן REFUNDED. ה-isPartial חייב להיות
+    // עקבי עם התקרה המדויקת (אין סבילות תחתונה של אגורה שמסמנת מלא בטעות).
+    findUniqueTx.mockResolvedValue(baseTx); // amount=100, refundedAmount=0
+    await callPOST(
+      makeRequest({ cardcomTransactionId: "tx-1", reason: "almost full", amount: 99.99 })
+    );
+    const updateCall = (tx.cardcomTransaction.update as any).mock.calls[0][0];
+    expect(updateCall.data.status).toBe("APPROVED");
+  });
+
+  it("marks transaction REFUNDED when a partial refund completes the exact original (99.50 + 0.50)", async () => {
+    findUniqueTx.mockResolvedValue({
+      ...baseTx,
+      refundedAmount: new Prisma.Decimal("99.50"),
+    });
+    await callPOST(
+      makeRequest({ cardcomTransactionId: "tx-1", reason: "completes", amount: 0.5 })
+    );
+    const updateCall = (tx.cardcomTransaction.update as any).mock.calls[0][0];
+    expect(updateCall.data.status).toBe("REFUNDED");
+  });
+
   it("rejects refund attempt when transaction status is not APPROVED", async () => {
     findUniqueTx.mockResolvedValue({ ...baseTx, status: "DECLINED" });
     const res = await callPOST(
@@ -244,6 +267,50 @@ describe("POST /api/admin/cardcom/refund — partial vs full", () => {
     const res = await callPOST(makeRequest({ cardcomTransactionId: "tx-1", reason: "race" }));
     expect(res.status).toBe(409);
     expect(refundTransaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/admin/cardcom/refund — over-refund ceiling", () => {
+  // התקרה חייבת להיות הסכום המקורי בדיוק — בלי סבילות חיובית של אגורה.
+  // על עסקה של 100.00 אסור שסך ההחזרים יחרוג ל-100.01.
+  it("rejects a single refund that exceeds the original by a cent (100.01 on 100.00)", async () => {
+    findUniqueTx.mockResolvedValue(baseTx); // refundedAmount=0, amount=100
+    const res = await callPOST(
+      makeRequest({ cardcomTransactionId: "tx-1", reason: "over", amount: 100.01 })
+    );
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.message).toMatch(/חורג/);
+    // לא נתבע slice ולא נקראה Cardcom — נדחה לפני ה-claim.
+    expect(updateManyTx).not.toHaveBeenCalled();
+    expect(refundTransaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects a cumulative refund that exceeds the original by a cent (99.50 + 0.51)", async () => {
+    findUniqueTx.mockResolvedValue({
+      ...baseTx,
+      refundedAmount: new Prisma.Decimal("99.50"),
+    });
+    const res = await callPOST(
+      makeRequest({ cardcomTransactionId: "tx-1", reason: "over", amount: 0.51 })
+    );
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.message).toMatch(/חורג/);
+    expect(updateManyTx).not.toHaveBeenCalled();
+    expect(refundTransaction).not.toHaveBeenCalled();
+  });
+
+  it("allows a refund that brings the cumulative total to exactly the original (99.50 + 0.50)", async () => {
+    findUniqueTx.mockResolvedValue({
+      ...baseTx,
+      refundedAmount: new Prisma.Decimal("99.50"),
+    });
+    const res = await callPOST(
+      makeRequest({ cardcomTransactionId: "tx-1", reason: "exact", amount: 0.5 })
+    );
+    expect(res.status).toBe(200);
+    expect(refundTransaction).toHaveBeenCalledTimes(1);
   });
 });
 
