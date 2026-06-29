@@ -11,7 +11,9 @@
  *
  * Retry policy (inside withAudit):
  *  - Isolation level Serializable by default
- *  - Retries on 40001 (serialization failure) + 40P01 (deadlock)
+ *  - Retries on 40001 (serialization failure) + 40P01 (deadlock),
+ *    and P2034 (Prisma wraps the conflict inside $transaction as P2034,
+ *    not the raw Postgres code)
  *  - 3 attempts with jittered backoff (50/150/400ms ± 25%)
  */
 
@@ -33,7 +35,7 @@ export type AuditActor =
 
 // ─── Retry helpers ──────────────────────────────────────────────────────────
 
-const RETRY_CODES = ["40001", "40P01"] as const;
+const RETRY_CODES = ["40001", "40P01", "P2034"] as const;
 const DELAYS_MS = [50, 150, 400];
 const MAX_RETRIES = 3;
 
