@@ -101,25 +101,52 @@ export async function verifyPaymentOwnership(
 }
 
 /**
+ * אימות פורמט מחמיר למזהה תשלום חיצוני (Sumit) לפני שימוש ב-lookup.
+ * מונע מזהים קצרים/ריקים/חריגים שעלולים להתאים בטעות כתת-מחרוזת.
+ * דורש 6–64 תווים מתוך אותיות לטיניות, ספרות, מקף וקו תחתון בלבד.
+ */
+export function isValidExternalPaymentId(value: unknown): value is string {
+  return typeof value === "string" && /^[A-Za-z0-9_-]{6,64}$/.test(value);
+}
+
+/**
+ * פורמט הסמן המתוחם לשמירת ה-PaymentID החיצוני של Sumit בשדה notes.
+ * חובה להשתמש בו בכל מסלול כתיבה עתידי שמאחסן את המזהה, כדי שההתאמה
+ * תהיה לפי סמן ייחודי ולא לפי תת-מחרוזת חשופה (מונע IDOR/התנגשות).
+ */
+export function buildSumitExternalMarker(externalPaymentId: string): string {
+  return `[SUMIT_PID:${externalPaymentId}]`;
+}
+
+/**
  * Best-effort lookup לpayment ע"י PaymentID חיצוני שנשמר ב-notes.
  * שימוש: Sumit webhook שולח PaymentID חיצוני במקום ה-Payment.id הפנימי.
  * מחזיר את ה-VerifiedPayment האמיתי (כולל therapistId מ-DB).
+ *
+ * אבטחה: ההתאמה היא לפי סמן מתוחם מדויק (buildSumitExternalMarker) ולא
+ * לפי תת-מחרוזת חשופה — כך מזהה לא יכול להתאים בטעות לתשלום אחר ש-notes
+ * שלו מכיל את אותו רצף ספרות. בנוסף נאכף פורמט מחמיר וסדר תוצאות
+ * דטרמיניסטי (createdAt desc) כדי שההתאמה תהיה צפויה וחד-משמעית.
  *
  * הגבלה: מחפש רק payments ב-status PENDING (משלום שלא טופל עדיין).
  */
 export async function verifyPaymentByExternalId(
   externalPaymentId: string | undefined | null
 ): Promise<VerifiedPayment | null> {
-  if (!externalPaymentId || typeof externalPaymentId !== "string") {
+  if (!isValidExternalPaymentId(externalPaymentId)) {
+    logger.warn("[WebhookVerify] Invalid external payment ID format", {
+      externalPaymentId,
+    });
     return null;
   }
 
   try {
     const payment = await prisma.payment.findFirst({
       where: {
-        notes: { contains: externalPaymentId },
+        notes: { contains: buildSumitExternalMarker(externalPaymentId) },
         status: "PENDING",
       },
+      orderBy: { createdAt: "desc" },
       select: {
         id: true,
         status: true,

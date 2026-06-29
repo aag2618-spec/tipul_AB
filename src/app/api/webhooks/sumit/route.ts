@@ -6,7 +6,11 @@ import prisma from "@/lib/prisma";
 import { verifySumitWebhook, SumitWebhookPayload } from "@/lib/sumit";
 import { logger } from "@/lib/logger";
 import { completeWebhookPayment } from "@/lib/payments/receipt-service";
-import { verifyPaymentByExternalId } from "@/lib/webhook-verification";
+import {
+  verifyPaymentByExternalId,
+  isValidExternalPaymentId,
+  buildSumitExternalMarker,
+} from "@/lib/webhook-verification";
 import { checkRateLimit, WEBHOOK_RATE_LIMIT } from "@/lib/rate-limit";
 import { saveFailedWebhook } from "@/lib/webhook-retry";
 import {
@@ -392,15 +396,23 @@ async function handlePaymentFailed(
 async function handleDocumentCreated(payload: SumitWebhookPayload) {
   const { DocumentID, DocumentURL, PaymentID } = payload;
 
-  if (!PaymentID) return;
+  if (!isValidExternalPaymentId(PaymentID)) {
+    logger.warn("[Sumit] document.created — invalid PaymentID format", {
+      PaymentID,
+      DocumentID,
+    });
+    return;
+  }
 
   // ── אימות שPaymentID שייך באמת לpayment במערכת ──
-  // עדכון ה-Payment עם קישור למסמך — אבל רק אם payment לגיטימי קיים
-  // ולא נחסם ע"י תוקף שיודע סנגנון של PaymentID חיצוני.
+  // עדכון ה-Payment עם קישור למסמך — אבל רק אם payment לגיטימי קיים.
+  // אבטחה: התאמה לפי סמן מתוחם מדויק (לא תת-מחרוזת חשופה) + סדר
+  // דטרמיניסטי, כדי שמזהה לא יתאים בטעות לתשלום אחר.
   const payment = await prisma.payment.findFirst({
     where: {
-      notes: { contains: PaymentID },
+      notes: { contains: buildSumitExternalMarker(PaymentID) },
     },
+    orderBy: { createdAt: "desc" },
     select: {
       id: true,
       client: { select: { therapistId: true } },
