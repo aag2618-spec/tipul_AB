@@ -31,6 +31,10 @@ export async function GET(request: NextRequest) {
     if (session.user.requires2FA) {
       return NextResponse.redirect(new URL("/auth/2fa-verify", baseUrl));
     }
+    // force-setup gate: מי שטרם הקים 2FA חייב להפעיל אותו לפני חיבור יומן (ערוץ PHI).
+    if (session.user.requires2FASetup) {
+      return NextResponse.redirect(new URL("/auth/2fa-setup", baseUrl));
+    }
 
     if (error) {
       logger.error("[GoogleCalendar] OAuth error:", { error });

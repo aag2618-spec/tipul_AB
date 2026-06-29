@@ -17,6 +17,11 @@ export async function GET() {
   if (session.user.requires2FA) {
     return NextResponse.redirect(new URL("/auth/2fa-verify", process.env.NEXTAUTH_URL));
   }
+  // force-setup gate: מי שטרם הקים 2FA חייב להפעיל אותו לפני חיבור יומן (ערוץ PHI).
+  // סימטרי לבדיקת requires2FA — הנתיב פטור מה-proxy ולכן הבדיקה כאן מפורשת.
+  if (session.user.requires2FASetup) {
+    return NextResponse.redirect(new URL("/auth/2fa-setup", process.env.NEXTAUTH_URL));
+  }
 
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
