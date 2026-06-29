@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PAYMENT_METHOD_SELECT_OPTIONS } from "@/lib/payment-methods";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -557,11 +558,11 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="CASH">מזומן</SelectItem>
-                      <SelectItem value="CREDIT_CARD">אשראי</SelectItem>
-                      <SelectItem value="BANK_TRANSFER">העברה</SelectItem>
-                      <SelectItem value="CHECK">צ׳ק</SelectItem>
-                      <SelectItem value="OTHER">אחר</SelectItem>
+                      {PAYMENT_METHOD_SELECT_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

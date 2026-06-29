@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PAYMENT_METHOD_SELECT_OPTIONS } from "@/lib/payment-methods";
 import { CheckCircle2, Ban, UserX, Loader2, ChevronDown, ChevronUp, AlertCircle, Wallet, FileText, ArrowLeft, CreditCard, Stethoscope } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
@@ -586,11 +587,11 @@ export function UpdateSessionDialog({
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="CASH">מזומן</SelectItem>
-                          <SelectItem value="CREDIT_CARD">אשראי</SelectItem>
-                          <SelectItem value="BANK_TRANSFER">העברה</SelectItem>
-                          <SelectItem value="CHECK">צ׳ק</SelectItem>
-                          <SelectItem value="OTHER">אחר</SelectItem>
+                          {PAYMENT_METHOD_SELECT_OPTIONS.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>

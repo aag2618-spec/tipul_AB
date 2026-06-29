@@ -37,14 +37,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
-
-const METHOD_LABELS: Record<string, string> = {
-  CASH: "מזומן",
-  CREDIT_CARD: "כרטיס אשראי",
-  BANK_TRANSFER: "העברה בנקאית",
-  CHECK: "המחאה",
-  OTHER: "אחר",
-};
+import {
+  getPaymentMethodLabel,
+  PAYMENT_METHOD_SELECT_OPTIONS,
+} from "@/lib/payment-methods";
 
 interface PayClientDebtsProps {
   clientId: string;
@@ -346,11 +342,11 @@ export function PayClientDebts({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="CASH">מזומן</SelectItem>
-                    <SelectItem value="CREDIT_CARD">כרטיס אשראי</SelectItem>
-                    <SelectItem value="BANK_TRANSFER">העברה בנקאית</SelectItem>
-                    <SelectItem value="CHECK">המחאה</SelectItem>
-                    <SelectItem value="OTHER">אחר</SelectItem>
+                    {PAYMENT_METHOD_SELECT_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -596,7 +592,7 @@ export function PayClientDebts({
                 </div>
                 <div className="flex justify-between">
                   <span>אמצעי תשלום:</span>
-                  <span>{METHOD_LABELS[method] || method}</span>
+                  <span>{getPaymentMethodLabel(method)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>פגישות:</span>

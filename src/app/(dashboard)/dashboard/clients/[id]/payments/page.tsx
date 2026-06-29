@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PAYMENT_METHOD_SELECT_OPTIONS } from "@/lib/payment-methods";
 import {
   CreditCard,
   Calendar,
@@ -272,10 +273,11 @@ export default function ClientPaymentsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="CASH">מזומן</SelectItem>
-                  <SelectItem value="CREDIT_CARD">אשראי</SelectItem>
-                  <SelectItem value="BANK_TRANSFER">העברה בנקאית</SelectItem>
-                  <SelectItem value="CHECK">צ׳ק</SelectItem>
+                  {PAYMENT_METHOD_SELECT_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

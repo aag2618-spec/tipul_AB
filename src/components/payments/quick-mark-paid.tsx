@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PAYMENT_METHOD_SELECT_OPTIONS } from "@/lib/payment-methods";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -467,11 +468,11 @@ export function QuickMarkPaid({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="CASH">מזומן</SelectItem>
-                    <SelectItem value="CREDIT_CARD">כרטיס אשראי</SelectItem>
-                    <SelectItem value="BANK_TRANSFER">העברה בנקאית</SelectItem>
-                    <SelectItem value="CHECK">המחאה</SelectItem>
-                    <SelectItem value="OTHER">אחר</SelectItem>
+                    {PAYMENT_METHOD_SELECT_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

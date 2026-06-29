@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PAYMENT_METHOD_SELECT_OPTIONS } from "@/lib/payment-methods";
 import { Loader2, Check, ChevronDown, CreditCard, Wallet, FileText } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
@@ -382,11 +383,11 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="CASH">מזומן</SelectItem>
-                    <SelectItem value="CREDIT_CARD">אשראי</SelectItem>
-                    <SelectItem value="BANK_TRANSFER">העברה בנקאית</SelectItem>
-                    <SelectItem value="CHECK">צ׳ק</SelectItem>
-                    <SelectItem value="OTHER">אחר</SelectItem>
+                    {PAYMENT_METHOD_SELECT_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PAYMENT_METHOD_SELECT_OPTIONS } from "@/lib/payment-methods";
 import { Loader2, CreditCard, FileText } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
@@ -252,11 +253,11 @@ function NewPaymentContent() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="CASH">מזומן</SelectItem>
-                    <SelectItem value="CREDIT_CARD">כרטיס אשראי</SelectItem>
-                    <SelectItem value="BANK_TRANSFER">העברה בנקאית</SelectItem>
-                    <SelectItem value="CHECK">צ׳ק</SelectItem>
-                    <SelectItem value="OTHER">אחר</SelectItem>
+                    {PAYMENT_METHOD_SELECT_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
