@@ -10,8 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PAYMENT_METHOD_SELECT_OPTIONS } from "@/lib/payment-methods";
-import { Loader2, Check, ChevronDown, CreditCard, Wallet, FileText } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
+import { ReceiptToggle } from "@/components/payments/receipt-toggle";
+import { Loader2, Check, ChevronDown, CreditCard, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
@@ -485,31 +485,14 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
                 </div>
               )}
 
-              {businessType !== "NONE" && (
-                // באשראי + מסוף Cardcom פעיל — הכסף עובר דרכו והוא מפיק קבלה
-                // אוטומטית. אחרת (מזומן/העברה/צ'ק) — המטפל/ת בוחר/ת.
-                method === "CREDIT_CARD" && hasActiveCardcom ? (
-                  <div className="flex items-center gap-3 py-2 px-3 bg-green-50 rounded-lg border border-green-200">
-                    <FileText className="h-4 w-4 text-green-700" />
-                    <span className="text-sm text-green-800">
-                      קבלה תופק אוטומטית דרך קארדקום
-                    </span>
-                  </div>
-                ) : receiptMode === "NEVER" ? null : (
-                  <div className="flex items-center gap-3 py-2 px-3 bg-sky-50 rounded-lg border border-sky-200">
-                    <Checkbox
-                      id="issue-receipt"
-                      checked={issueReceipt}
-                      onCheckedChange={(checked) => setIssueReceipt(checked === true)}
-                      disabled={receiptMode === "ALWAYS"}
-                    />
-                    <Label htmlFor="issue-receipt" className="cursor-pointer flex items-center gap-2 text-sky-800">
-                      <FileText className="h-4 w-4" />
-                      הפק קבלה
-                    </Label>
-                  </div>
-                )
-              )}
+              <ReceiptToggle
+                businessType={businessType}
+                receiptMode={receiptMode}
+                hasActiveCardcom={hasActiveCardcom}
+                method={method}
+                issueReceipt={issueReceipt}
+                onIssueReceiptChange={setIssueReceipt}
+              />
             </div>
           </div>
 
@@ -558,7 +541,7 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
             <div className="pt-4 border-t mt-4">
               <p className="text-sm text-muted-foreground mb-3">
                 למטופל יש עוד {clientDebt.unpaidSessionsCount - 1} פגישות ממתינות לתשלום
-                (סה"כ חוב: ₪{clientDebt.totalDebt.toFixed(0)})
+                (סה&quot;כ חוב: ₪{clientDebt.totalDebt.toFixed(0)})
               </p>
               <Button 
                 variant="outline" 

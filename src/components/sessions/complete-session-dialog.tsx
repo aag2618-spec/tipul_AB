@@ -19,12 +19,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PAYMENT_METHOD_SELECT_OPTIONS } from "@/lib/payment-methods";
+import { ReceiptToggle } from "@/components/payments/receipt-toggle";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { CheckCircle, Loader2, FileText, ChevronDown, ChevronUp, CreditCard, Stethoscope } from "lucide-react";
+import { CheckCircle, Loader2, ChevronDown, ChevronUp, CreditCard, Stethoscope } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
@@ -569,34 +569,14 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
               </div>
 
               {/* הוצאת קבלה */}
-              {businessType !== "NONE" && (
-                // באשראי + מסוף Cardcom פעיל — הכסף עובר דרכו והוא מפיק קבלה
-                // אוטומטית. אחרת (מזומן/העברה/צ'ק) — המטפל/ת בוחר/ת.
-                paymentMethod === "CREDIT_CARD" && hasActiveCardcom ? (
-                  <div className="flex items-center gap-3 py-2 px-3 bg-green-50 rounded-lg border border-green-200">
-                    <FileText className="h-4 w-4 text-green-700" />
-                    <span className="text-sm text-green-800">
-                      קבלה תופק אוטומטית דרך קארדקום
-                    </span>
-                  </div>
-                ) : receiptMode === "NEVER" ? null : (
-                  <div className="flex items-center gap-3 py-2 px-3 bg-sky-50 rounded-lg border border-sky-200">
-                    <Checkbox
-                      id="issue-receipt-complete"
-                      checked={issueReceipt}
-                      onCheckedChange={(checked) => setIssueReceipt(checked === true)}
-                      disabled={receiptMode === "ALWAYS"}
-                    />
-                    <Label htmlFor="issue-receipt-complete" className="cursor-pointer flex items-center gap-2 text-sky-800">
-                      <FileText className="h-4 w-4" />
-                      הוצא קבלה
-                      {receiptMode === "ALWAYS" && (
-                        <span className="text-xs text-sky-600">(ברירת מחדל)</span>
-                      )}
-                    </Label>
-                  </div>
-                )
-              )}
+              <ReceiptToggle
+                businessType={businessType}
+                receiptMode={receiptMode}
+                hasActiveCardcom={hasActiveCardcom}
+                method={paymentMethod}
+                issueReceipt={issueReceipt}
+                onIssueReceiptChange={setIssueReceipt}
+              />
 
               {/* Advanced Options */}
               <div className="space-y-3">

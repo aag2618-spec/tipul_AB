@@ -41,6 +41,7 @@ import {
   getPaymentMethodLabel,
   PAYMENT_METHOD_SELECT_OPTIONS,
 } from "@/lib/payment-methods";
+import { ReceiptToggle } from "@/components/payments/receipt-toggle";
 
 interface PayClientDebtsProps {
   clientId: string;
@@ -351,42 +352,15 @@ export function PayClientDebts({
                 </Select>
               </div>
 
-              {/* הוצאת קבלה - מוצג רק אם סוג העסק מאפשר */}
-              {businessType !== "NONE" && (
-                // באשראי + מסוף Cardcom פעיל — הכסף עובר דרכו והוא מפיק קבלה
-                // אוטומטית. אחרת (מזומן/העברה/צ'ק) — המטפל/ת בוחר/ת.
-                method === "CREDIT_CARD" && hasActiveCardcom ? (
-                  <div className="flex items-center gap-3 py-2 px-3 bg-green-50 rounded-lg border border-green-200">
-                    <FileText className="h-4 w-4 text-green-700" />
-                    <span className="text-sm text-green-800">
-                      קבלה תופק אוטומטית דרך קארדקום
-                    </span>
-                  </div>
-                ) : receiptMode === "NEVER" ? null : (
-                  <div
-                    className="flex items-center gap-3 py-2 px-3 bg-sky-50 rounded-lg border border-sky-200"
-                    onClick={(e) => e.stopPropagation()}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onMouseDown={(e) => e.stopPropagation()}
-                  >
-                    <Checkbox
-                      id="issue-receipt-debts"
-                      checked={issueReceipt}
-                      onCheckedChange={(checked) => {
-                        setIssueReceipt(checked === true);
-                      }}
-                      disabled={receiptMode === "ALWAYS"}
-                    />
-                    <Label htmlFor="issue-receipt-debts" className="cursor-pointer flex items-center gap-2 text-sky-800">
-                      <FileText className="h-4 w-4" />
-                      הוצא קבלה
-                      {receiptMode === "ALWAYS" && (
-                        <span className="text-xs text-sky-600">(ברירת מחדל)</span>
-                      )}
-                    </Label>
-                  </div>
-                )
-              )}
+              {/* הוצאת קבלה - רכיב משותף (ReceiptToggle) */}
+              <ReceiptToggle
+                businessType={businessType}
+                receiptMode={receiptMode}
+                hasActiveCardcom={hasActiveCardcom}
+                method={method}
+                issueReceipt={issueReceipt}
+                onIssueReceiptChange={setIssueReceipt}
+              />
 
               {/* קבלה אחת מאוחדת — רק כשיש כמה פגישות וכשמפיקים קבלה */}
               {canOfferCombinedReceipt && (

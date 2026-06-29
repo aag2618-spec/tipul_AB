@@ -10,8 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PAYMENT_METHOD_SELECT_OPTIONS } from "@/lib/payment-methods";
-import { Loader2, CreditCard, FileText } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
+import { ReceiptToggle } from "@/components/payments/receipt-toggle";
+import { Loader2, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
 
@@ -266,31 +266,15 @@ function NewPaymentContent() {
             {/* הוצאת קבלה — מוצג רק כש"שולם" וכשסוג העסק מאפשר. באשראי + מסוף
                 קארדקום פעיל הקבלה מופקת אוטומטית בסליקה; אחרת המטפל/ת בוחר/ת.
                 בחוב (PENDING) אין תשלום בפועל ולכן הבלוק מוסתר. */}
-            {formData.status === "PAID" && businessType !== "NONE" && (
-              formData.method === "CREDIT_CARD" && hasActiveCardcom ? (
-                <div className="flex items-center gap-3 py-2 px-3 bg-green-50 rounded-lg border border-green-200">
-                  <FileText className="h-4 w-4 text-green-700" />
-                  <span className="text-sm text-green-800">
-                    קבלה תופק אוטומטית דרך קארדקום
-                  </span>
-                </div>
-              ) : receiptMode === "NEVER" ? null : (
-                <div className="flex items-center gap-3 py-2 px-3 bg-sky-50 rounded-lg border border-sky-200">
-                  <Checkbox
-                    id="issue-receipt"
-                    checked={issueReceipt}
-                    onCheckedChange={(checked) => setIssueReceipt(checked === true)}
-                    disabled={receiptMode === "ALWAYS"}
-                  />
-                  <Label htmlFor="issue-receipt" className="cursor-pointer flex items-center gap-2 text-sky-800">
-                    <FileText className="h-4 w-4" />
-                    הוצא קבלה
-                    {receiptMode === "ALWAYS" && (
-                      <span className="text-xs text-sky-600">(ברירת מחדל)</span>
-                    )}
-                  </Label>
-                </div>
-              )
+            {formData.status === "PAID" && (
+              <ReceiptToggle
+                businessType={businessType}
+                receiptMode={receiptMode}
+                hasActiveCardcom={hasActiveCardcom}
+                method={formData.method}
+                issueReceipt={issueReceipt}
+                onIssueReceiptChange={setIssueReceipt}
+              />
             )}
 
             <div className="space-y-2">

@@ -19,11 +19,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PAYMENT_METHOD_SELECT_OPTIONS } from "@/lib/payment-methods";
+import { ReceiptToggle } from "@/components/payments/receipt-toggle";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { CreditCard, Loader2, Check, ChevronDown, ChevronUp, Wallet, FileText } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
+import { CreditCard, Loader2, Check, ChevronDown, ChevronUp, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -477,42 +477,15 @@ export function QuickMarkPaid({
                 </Select>
               </div>
 
-              {/* הוצאת קבלה - מוצג רק אם סוג העסק מאפשר */}
-              {businessType !== "NONE" && (
-                // באשראי + מסוף Cardcom פעיל — הכסף עובר דרכו והוא מפיק קבלה
-                // אוטומטית. אחרת (מזומן/העברה/צ'ק) — המטפל/ת בוחר/ת.
-                method === "CREDIT_CARD" && hasActiveCardcom ? (
-                  <div className="flex items-center gap-3 py-2 px-3 bg-green-50 rounded-lg border border-green-200">
-                    <FileText className="h-4 w-4 text-green-700" />
-                    <span className="text-sm text-green-800">
-                      קבלה תופק אוטומטית דרך קארדקום
-                    </span>
-                  </div>
-                ) : receiptMode === "NEVER" ? null : (
-                  <div
-                    className="flex items-center gap-3 py-2 px-3 bg-sky-50 rounded-lg border border-sky-200"
-                    onClick={(e) => e.stopPropagation()}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onMouseDown={(e) => e.stopPropagation()}
-                  >
-                    <Checkbox
-                      id="issue-receipt"
-                      checked={issueReceipt}
-                      onCheckedChange={(checked) => {
-                        setIssueReceipt(checked === true);
-                      }}
-                      disabled={receiptMode === "ALWAYS"}
-                    />
-                    <Label htmlFor="issue-receipt" className="cursor-pointer flex items-center gap-2 text-sky-800">
-                      <FileText className="h-4 w-4" />
-                      הוצא קבלה
-                      {receiptMode === "ALWAYS" && (
-                        <span className="text-xs text-sky-600">(ברירת מחדל)</span>
-                      )}
-                    </Label>
-                  </div>
-                )
-              )}
+              {/* הוצאת קבלה - רכיב משותף (ReceiptToggle) */}
+              <ReceiptToggle
+                businessType={businessType}
+                receiptMode={receiptMode}
+                hasActiveCardcom={hasActiveCardcom}
+                method={method}
+                issueReceipt={issueReceipt}
+                onIssueReceiptChange={setIssueReceipt}
+              />
 
               {/* כפתור אופציות מתקדמות - תיקון הבאג */}
               <div
@@ -660,7 +633,7 @@ export function QuickMarkPaid({
           <div className="pt-4 border-t mt-4">
             <p className="text-sm text-muted-foreground mb-3 text-center">
               למטופל יש {effectiveUnpaidCount} פגישות ממתינות לתשלום
-              (סה"כ חוב: ₪{effectiveDebt.toFixed(0)})
+              (סה&quot;כ חוב: ₪{effectiveDebt.toFixed(0)})
             </p>
             <Button 
               variant="outline" 
