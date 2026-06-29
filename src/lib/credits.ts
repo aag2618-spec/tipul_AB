@@ -10,7 +10,7 @@
  *   1. אם `tx` סופק — רצים בתוך הטרנזקציה הקיימת ללא retry
  *      (הקורא אחראי על retry ברמה שלו, למשל withAudit).
  *   2. אם לא סופק — עוטפים ב-$transaction(Serializable) עם retry
- *      על 40001/40P01 (ראה DELAYS_MS למטה).
+ *      על 40001/40P01/P2034 (ראה DELAYS_MS למטה).
  *   3. SELECT FOR UPDATE בתחילת הטרנזקציה — מונע race בין שני
  *      SMSים שנשלחים במקביל שיעברו את אותה בדיקת מכסה.
  *   4. FIFO: מכסה חודשית -> הרכישה הישנה ביותר הפנויה -> next.
@@ -43,7 +43,10 @@ export class CreditConsumptionError extends Error {
 
 // ─── Retry helpers (משותף עם withAudit) ───────────────────────────────────
 
-const RETRY_CODES = ["40001", "40P01"] as const;
+// P2034: Prisma עוטף serialization conflict / deadlock בתוך $transaction כ-P2034
+// — וזה הקוד שחוזר בפועל ברוב המקרים. בלי P2034 ה-retry לא היה תופס conflicts
+// אמיתיים. תואם ל-audit.ts ולדפוס ב-charge-token/charge-saved-token/bulk-payment ועוד.
+const RETRY_CODES = ["40001", "40P01", "P2034"] as const;
 const DELAYS_MS = [50, 150, 400];
 const MAX_RETRIES = 3;
 
