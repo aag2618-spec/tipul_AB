@@ -108,6 +108,15 @@ async function runAllTasks() {
     );
   }
 
+  // שרשרת חתימות audit (גישה ב', 2026-06-29): חתימת שורות חדשות בכל tick (זול,
+  // dedup מובנה — חותם רק שורות שטרם נחתמו). אימות מלא של השרשרת פעם ביום
+  // ב-04:00 שעון ישראל (אחרי ה-retention, מחוץ לשעות עומס) — שבירה → AdminAlert.
+  const auditChainUrl =
+    israelHour === 4
+      ? `${baseUrl}/api/cron/audit-chain?validate=1`
+      : `${baseUrl}/api/cron/audit-chain`;
+  await callEndpoint(auditChainUrl, headers, "audit-chain");
+
   logger.info("[Scheduler] Tick complete");
 }
 

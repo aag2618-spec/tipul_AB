@@ -19,6 +19,7 @@ import type { Prisma } from "@prisma/client";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { alertAuditWriteFailure } from "@/lib/audit-failure-alert";
 
 // ─── Actor model ────────────────────────────────────────────────────────────
 
@@ -255,14 +256,16 @@ export async function logDelegatedCreate(params: {
       },
     });
   } catch (err) {
-    // לא קריטי — ה-create כבר הצליח. מתעדים warn ל-stderr כדי שיהיה visible
-    // במוניטורינג בלי לשבור את ה-API.
+    // לא קריטי ל-flow — ה-create כבר הצליח. מתעדים warn ל-stderr, ובנוסף מדליקים
+    // AdminAlert (deduped) כי גם זה trail של "מי פעל בשם מי" שאסור שייעלם בשקט.
+    const message = err instanceof Error ? err.message : String(err);
     logger.warn("[delegated-create-audit] persist failed", {
       operatorId: params.operatorId,
       targetTherapistId: params.targetTherapistId,
       recordType: params.recordType,
       recordId: params.recordId,
-      error: err instanceof Error ? err.message : String(err),
+      error: message,
     });
+    alertAuditWriteFailure("delegated-create (AdminAuditLog)", message);
   }
 }

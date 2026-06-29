@@ -1940,10 +1940,21 @@ model AdminAuditLog {
   revertedBy    User?     @relation("auditReverted", fields: [revertedById], references: [id], onDelete: SetNull)
   createdAt     DateTime  @default(now())
 
+  // 2026-06-29 — append-only chain (גישה ב'): שרשרת חתימות tamper-evident.
+  // ה-cron audit-chain ממלא אותן אחרי ה-INSERT (מחוץ למסלול הרגיש) ומאמת את
+  // השרשרת. הטריגר audit_admin_append_only מתיר עדכון של עמודות אלה (ושל שדות
+  // ה-undo) בלבד — עמודות הליבה נשארות immutable.
+  // ⚠️ עמודת תוכן חדשה כאן חייבת להתווסף לטריגר ב-prisma/sql/audit-append-only.sql
+  //    (בדיקת ה-IS DISTINCT FROM), אחרת תהפוך mutable בשקט.
+  prevHash      String?
+  rowHash       String?
+  hashedAt      DateTime?
+
   @@index([adminId])
   @@index([targetType, targetId])
   @@index([createdAt])
   @@index([undoable, undoExpiresAt]) // לcron ניקוי/validation
+  @@index([hashedAt]) // ל-cron audit-chain — איתור שורות שטרם נחתמו
   // Stage 2.0 (#13) — compound index לדשבורד "פעולות אדמין לאורך זמן".
   // מאיץ את ה-query הנפוץ "מה X עשה ב-30 הימים האחרונים" — ובמיוחד אחרי
   // שטבלת ה-audit גדלה. createdAt קודם ב-key כדי שגם range scan יעיל.
@@ -1957,9 +1968,10 @@ model AdminAuditLog {
 // מי קרא תמלול/סיכום פגישה/הקלטה/אבחנה/וכו'. חיוני להתאמה לתקנת
 // ההגנה על מידע רפואי-נפשי (תקנות הגנת הפרטיות 2017 + חוק חולה הנפש).
 //
-// Tamper-proof: אסור UPDATE על השורות לאחר insert. רק cron retention יכול
-// למחוק (אחרי 12 חודשים). ADMIN רואה ב-/admin/audit/data-access אבל לא יכול
-// למחוק יחידנית — אכיפה ברמת ה-API (אין endpoint למחיקה).
+// Tamper-evident: אסור UPDATE/DELETE על השורות לאחר insert — אכיפה ברמת DB
+// (טריגר audit_data_access_append_only ב-prisma/sql/audit-append-only.sql) +
+// שרשרת חתימות (prevHash/rowHash). רק cron retention מוחק (אחרי 24 חודשים —
+// תוכן קליני תחת תקנת בריאות הנפש). ADMIN רואה ב-/admin/audit/data-access.
 
 model DataAccessAuditLog {
   id         String   @id @default(cuid())
@@ -1979,12 +1991,22 @@ model DataAccessAuditLog {
   meta       String?  @db.Text // JSON metadata
   createdAt  DateTime @default(now())
 
+  // 2026-06-29 — append-only chain (גישה ב'): שרשרת חתימות tamper-evident.
+  // ה-cron audit-chain ממלא אותן אחרי ה-INSERT. הטריגר append-only מתיר עדכון
+  // של עמודות אלה בלבד — עמודות התוכן נשארות immutable.
+  // ⚠️ עמודת תוכן חדשה כאן חייבת להתווסף לטריגר ב-prisma/sql/audit-append-only.sql
+  //    (בדיקת ה-IS DISTINCT FROM), אחרת תהפוך mutable בשקט.
+  prevHash   String?
+  rowHash    String?
+  hashedAt   DateTime?
+
   // אינדקסים לשליפת audit:
   @@index([userId, createdAt]) // "מה X עשה לאורך זמן"
   @@index([recordType, recordId]) // "מי ניגש ל-X"
   @@index([clientId, createdAt]) // "מי ניגש לנתוני לקוח Y"
   @@index([createdAt]) // לcron retention + dashboards לאורך זמן
   @@index([action, createdAt]) // לדשבורדים לפי סוג פעולה
+  @@index([hashedAt]) // ל-cron audit-chain — איתור שורות שטרם נחתמו
 }
 
 // ==================== Breach Incident Log (R5, סבב 17e) ====================
