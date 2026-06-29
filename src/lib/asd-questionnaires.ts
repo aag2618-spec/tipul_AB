@@ -217,34 +217,34 @@ const AQ_CHILD = {
 //    סולם הזמן של RAADS: כל פריט נמדד גם להווה וגם לילדות.
 //    ⚠️ ניסוח הפריטים טעון אימות מול המקור הרשמי.
 // ---------------------------------------------------------------------------
-// בכל הפריטים value === score (0-3), לכן אין צורך בשדה score נפרד.
-function raadsOpts() {
+// סולם הזמן של RAADS (0-3). reverse=true הופך את הניקוד — לפריט "נורמלי"
+// (פריט 6) שבו דווקא הסכמה מעידה על היעדר תכונה אוטיסטית.
+function raadsOpts(reverse = false) {
   return [
-    { value: 3, text: "נכון עכשיו וגם בילדות" },
-    { value: 2, text: "נכון רק עכשיו" },
-    { value: 1, text: "נכון רק בילדות (מתחת לגיל 16)" },
-    { value: 0, text: "אף פעם לא נכון" },
+    { value: 3, score: reverse ? 0 : 3, text: "נכון עכשיו וגם בילדות" },
+    { value: 2, score: reverse ? 1 : 2, text: "נכון רק עכשיו" },
+    { value: 1, score: reverse ? 2 : 1, text: "נכון רק בילדות (מתחת לגיל 16)" },
+    { value: 0, score: reverse ? 3 : 0, text: "אף פעם לא נכון" },
   ];
 }
 
-const RAADS14_ITEMS: { section: string; title: string }[] = [
-  // Mentalizing deficits (קשיי מנטליזציה) — 6 פריטים
-  { section: "mentalizing", title: "קשה לי להבין איך אנשים אחרים מרגישים כשאני מדבר/ת איתם." },
-  { section: "mentalizing", title: "אני מתקשה להבין מה מצופה ממני במצבים חברתיים." },
-  { section: "mentalizing", title: "כשמישהו מדבר איתי, קשה לי לדעת אם הוא רציני או מתבדח." },
-  { section: "mentalizing", title: "אני מתקשה לזהות רגשות של אנשים מהבעת פניהם או משפת גופם." },
-  { section: "mentalizing", title: "אני נוטה לפרש דברים באופן מילולי מדי, ולכן לפעמים מפספס/ת את הכוונה." },
-  { section: "mentalizing", title: "אני צריך/ה שיסבירו לי דברים יותר מפעם אחת במצבים חברתיים." },
-  // Social anxiety (חרדה חברתית) — 4 פריטים
-  { section: "anxiety", title: "מצבים חברתיים מלחיצים או מבלבלים אותי." },
-  { section: "anxiety", title: "קשה לי להשתתף בשיחות חולין (small talk)." },
-  { section: "anxiety", title: "אני נמנע/ת ממצבים חברתיים כי הם גורמים לי אי-נוחות." },
-  { section: "anxiety", title: "קשה לי לשמור על קשר עין במהלך שיחה." },
-  // Sensory reactivity (תגובתיות חושית) — 4 פריטים
-  { section: "sensory", title: "צלילים, מרקמים או אורות מסוימים מטרידים אותי הרבה יותר מאשר אנשים אחרים." },
-  { section: "sensory", title: "אני מתקשה לסנן רעשי רקע שאחרים כמעט לא שמים לב אליהם." },
-  { section: "sensory", title: "קורה שאני נמשך/ת להתבונן או לגעת בדברים בגלל המרקם או התחושה שלהם." },
-  { section: "sensory", title: "כשאני שומע/ת קול חזק או פתאומי, אני מגיב/ה בעוצמה רבה יותר מאחרים." },
+// 14 הפריטים בנוסח המאומת (Eriksson 2013). הסדר והשיוך לתת-סולמות מעורבבים
+// במקור. פריט 6 הוא reverse. אומת מול ה-RAADS-14 הרשמי.
+const RAADS14_ITEMS: { section: string; reverse?: boolean; title: string }[] = [
+  { section: "mentalizing", title: "קשה לי להבין איך אנשים אחרים מרגישים כשאנחנו מדברים." },
+  { section: "sensory", title: "מרקמים רגילים מסוימים, שאינם מפריעים לאחרים, מרגישים לי לא נעימים מאוד כשהם נוגעים בעור שלי." },
+  { section: "anxiety", title: "קשה לי מאוד לעבוד ולתפקד בקבוצות." },
+  { section: "mentalizing", title: "קשה לי להבין מה אנשים אחרים מצפים ממני." },
+  { section: "anxiety", title: "לעתים קרובות אינני יודע/ת איך להתנהג במצבים חברתיים." },
+  { section: "anxiety", reverse: true, title: "אני מסוגל/ת לפטפט ולנהל שיחת חולין עם אנשים." },
+  { section: "sensory", title: "כשאני חש/ה הצפה חושית, אני חייב/ת לבודד את עצמי כדי לכבות את הגירויים." },
+  { section: "anxiety", title: "איך מתיידדים ומתחברים חברתית — זו תעלומה עבורי." },
+  { section: "mentalizing", title: "כשאני מדבר/ת עם מישהו, קשה לי לזהות מתי תורי לדבר ומתי להקשיב." },
+  { section: "sensory", title: "לפעמים אני צריך/ה לכסות את האוזניים כדי לחסום רעשים מכאיבים (כמו שואב אבק או אנשים שמדברים חזק מדי)." },
+  { section: "mentalizing", title: "לפעמים קשה מאוד לקרוא את הפנים, הידיים ותנועות הגוף של מישהו כשאנחנו מדברים." },
+  { section: "mentalizing", title: "אני מתמקד/ת בפרטים יותר מאשר ברעיון הכללי." },
+  { section: "mentalizing", title: "אני לוקח/ת דברים מילולית מדי, ולכן לעתים קרובות מפספס/ת את מה שאנשים מנסים לומר." },
+  { section: "mentalizing", title: "אני נסער/ת מאוד כשהדרך שבה אני אוהב/ת לעשות דברים משתנה לפתע." },
 ];
 
 const RAADS14 = {
@@ -252,14 +252,14 @@ const RAADS14 = {
   name: "סקר RAADS-14 לספקטרום האוטיסטי — מבוגרים",
   nameEn: "RAADS-14 Screen",
   description:
-    "שאלון סקר קצר ל-14 פריטים, רגיש לזיהוי מבוגרים בתפקוד גבוה שלא אובחנו. דיווח עצמי. מקור: Eriksson, Andersen & Bejerot, 2013. כלי סקר בלבד — אינו אבחון. ⚠️ ניסוח הפריטים טעון אימות מול המקור הרשמי.",
+    "שאלון סקר קצר ל-14 פריטים, רגיש לזיהוי מבוגרים בתפקוד גבוה שלא אובחנו. דיווח עצמי. מקור: Eriksson, Andersen & Bejerot, 2013 (נוסח הפריטים אומת מול המקור). כלי סקר בלבד — אינו אבחון.",
   category: "ספקטרום אוטיסטי (ASD)",
   testType: "SELF_REPORT",
   questions: RAADS14_ITEMS.map((item, i) => ({
     id: i + 1,
     section: item.section,
     title: item.title,
-    options: raadsOpts(),
+    options: raadsOpts(item.reverse),
   })),
   scoring: {
     maxScore: 42,
@@ -269,9 +269,9 @@ const RAADS14 = {
       { min: 14, max: 42, label: "מעל הסף", description: "ציון מעל סף החשד (14). מומלץ להפנות להערכה אבחנתית מקיפה." },
     ],
     subscales: {
-      mentalizing: { items: [1, 2, 3, 4, 5, 6], name: "קשיי מנטליזציה" },
-      anxiety: { items: [7, 8, 9, 10], name: "חרדה חברתית" },
-      sensory: { items: [11, 12, 13, 14], name: "תגובתיות חושית" },
+      mentalizing: { items: [1, 4, 9, 11, 12, 13, 14], name: "קשיי מנטליזציה" },
+      sensory: { items: [2, 7, 10], name: "תגובתיות חושית" },
+      anxiety: { items: [3, 5, 6, 8], name: "חרדה חברתית" },
     },
   },
 };
@@ -298,32 +298,33 @@ function catqOpts(reverse: boolean) {
   return scale.map((o) => ({ value: o.v, score: reverse ? 8 - o.v : o.v, text: o.text }));
 }
 
+// 25 הפריטים בנוסח המאומת (Hull et al., 2019). reverse בפריטים 3,12,19,22,24.
 const CATQ_ITEMS: { section: string; reverse: boolean; title: string }[] = [
-  { section: "compensation", reverse: false, title: "אני עוקב/ת אחרי הבעות הפנים ושפת הגוף של אחרים כדי ללמוד כיצד להתנהג במצבים חברתיים." },
-  { section: "masking", reverse: false, title: "אני שולט/ת במודע בשפת הגוף שלי כדי להיראות נינוח/ה." },
-  { section: "assimilation", reverse: true, title: "אני מרגיש/ה שאני 'עצמי' בזמן שאני מקיים/ת אינטראקציה עם אנשים אחרים." },
-  { section: "compensation", reverse: false, title: "למדתי כיצד לנהל שיחה דרך התבוננות וחיקוי של אנשים אחרים." },
-  { section: "compensation", reverse: false, title: "הכנתי לעצמי מאגר של ביטויים ומשפטים מוכנים לשימוש בשיחות." },
-  { section: "masking", reverse: false, title: "אני משתדל/ת לשמור על קשר עין גם כשזה לא נוח לי." },
-  { section: "assimilation", reverse: false, title: "אני מעמיד/ה פנים שאני 'רגיל/ה' כדי לעבור מצבים חברתיים." },
-  { section: "compensation", reverse: false, title: "חזרתי ותרגלתי ביטויי פנים ושפת גוף כדי שייראו טבעיים." },
-  { section: "masking", reverse: false, title: "אני מנטר/ת את עצמי כל הזמן כדי שאיראה מתאים/ה חברתית." },
-  { section: "assimilation", reverse: false, title: "אני זקוק/ה לתמיכה של אנשים אחרים כדי להתמודד עם מצבים חברתיים." },
-  { section: "compensation", reverse: false, title: "אני חוקר/ת כללים חברתיים כדי לדעת איך להתנהג נכון." },
-  { section: "masking", reverse: true, title: "אינני צריך/ה להתאמץ כדי להיראות מעורב/ת בשיחה." },
-  { section: "assimilation", reverse: false, title: "במצבים חברתיים אני מרגיש/ה שאני 'מופיע/ה' ולא באמת עצמי." },
-  { section: "compensation", reverse: false, title: "אני לומד/ת מסרטים וספרים כיצד להתנהג במצבים חברתיים." },
-  { section: "masking", reverse: false, title: "אני מתאמן/ת על הבעות הפנים שלי כדי שיתאימו למצב." },
-  { section: "assimilation", reverse: false, title: "אני מרגיש/ה צורך לחקות התנהגות של אחרים כדי להשתלב." },
-  { section: "compensation", reverse: false, title: "אני חושב/ת מראש על מה לומר לפני אינטראקציה חברתית." },
-  { section: "masking", reverse: false, title: "אני מתאים/ה את ההתנהגות שלי כדי להיראות בטוח/ה בעצמי גם כשאינני." },
-  { section: "assimilation", reverse: true, title: "מצבים חברתיים אינם מתישים אותי במיוחד." },
-  { section: "compensation", reverse: false, title: "אני שם/ה לב כיצד אחרים מתנהגים ומחקה אותם כדי להשתלב." },
-  { section: "masking", reverse: false, title: "אני משתדל/ת שלא להראות לאחרים שמצבים חברתיים קשים לי." },
-  { section: "assimilation", reverse: true, title: "אני מסתדר/ת חברתית בלי שאצטרך לתכנן זאת מראש." },
-  { section: "compensation", reverse: false, title: "אני משתמש/ת בפרצופים וביטויים שראיתי אצל אחרים בשיחות שלי." },
-  { section: "masking", reverse: true, title: "אינני מנסה במיוחד לשלוט באופן שבו אני נתפס/ת חברתית." },
-  { section: "assimilation", reverse: false, title: "אני מרגיש/ה שאני 'משחק/ת תפקיד' כדי לשרוד מצבים חברתיים." },
+  { section: "compensation", reverse: false, title: "כשאני באינטראקציה עם מישהו, אני מעתיק/ה במכוון את שפת הגוף או הבעות הפנים שלו." },
+  { section: "masking", reverse: false, title: "אני עוקב/ת אחרי שפת הגוף או הבעות הפנים שלי כדי להיראות רגוע/ה." },
+  { section: "assimilation", reverse: true, title: "לעתים רחוקות אני מרגיש/ה צורך 'להעמיד פנים' כדי לצלוח מצב חברתי." },
+  { section: "compensation", reverse: false, title: "פיתחתי לעצמי 'תסריט' שאני עוקב/ת אחריו במצבים חברתיים." },
+  { section: "compensation", reverse: false, title: "אני חוזר/ת על משפטים ששמעתי אחרים אומרים, בדיוק באותו אופן ששמעתי אותם לראשונה." },
+  { section: "masking", reverse: false, title: "אני מתאים/ה את שפת הגוף או הבעות הפנים שלי כדי להיראות מעוניין/ת באדם שעמו אני מקיים/ת אינטראקציה." },
+  { section: "assimilation", reverse: false, title: "במצבים חברתיים אני מרגיש/ה שאני 'מופיע/ה' במקום להיות עצמי." },
+  { section: "compensation", reverse: false, title: "באינטראקציות החברתיות שלי אני משתמש/ת בהתנהגויות שלמדתי מהתבוננות באנשים אחרים." },
+  { section: "masking", reverse: false, title: "אני תמיד חושב/ת על הרושם שאני יוצר/ת על אנשים אחרים." },
+  { section: "assimilation", reverse: false, title: "אני זקוק/ה לתמיכת אנשים אחרים כדי להתנהל חברתית." },
+  { section: "compensation", reverse: false, title: "אני מתרגל/ת את הבעות הפנים ושפת הגוף שלי כדי לוודא שהן נראות טבעיות." },
+  { section: "masking", reverse: true, title: "אינני מרגיש/ה צורך ליצור קשר עין עם אחרים אם אינני רוצה בכך." },
+  { section: "assimilation", reverse: false, title: "אני חייב/ת לאלץ את עצמי לקיים אינטראקציה עם אנשים במצבים חברתיים." },
+  { section: "compensation", reverse: false, title: "ניסיתי לשפר את ההבנה שלי במיומנויות חברתיות על-ידי התבוננות באנשים אחרים." },
+  { section: "masking", reverse: false, title: "אני עוקב/ת אחרי שפת הגוף או הבעות הפנים שלי כדי להיראות מעוניין/ת באדם שעמו אני מקיים/ת אינטראקציה." },
+  { section: "assimilation", reverse: false, title: "במצבים חברתיים אני מנסה למצוא דרכים להימנע מאינטראקציה עם אחרים." },
+  { section: "compensation", reverse: false, title: "חקרתי את כללי האינטראקציה החברתית כדי לשפר את המיומנויות החברתיות שלי." },
+  { section: "masking", reverse: false, title: "אני תמיד מודע/ת לרושם שאני יוצר/ת על אנשים אחרים." },
+  { section: "assimilation", reverse: true, title: "אני מרגיש/ה חופשי/ה להיות עצמי כשאני עם אנשים אחרים." },
+  { section: "compensation", reverse: false, title: "אני לומד/ת איך אנשים משתמשים בגוף ובפנים באינטראקציה, מצפייה בטלוויזיה או בסרטים או מקריאת ספרות." },
+  { section: "masking", reverse: false, title: "אני מתאים/ה את שפת הגוף או הבעות הפנים שלי כדי להיראות רגוע/ה." },
+  { section: "assimilation", reverse: true, title: "כשאני מדבר/ת עם אנשים אחרים, אני מרגיש/ה שהשיחה זורמת באופן טבעי." },
+  { section: "compensation", reverse: false, title: "השקעתי זמן בלימוד מיומנויות חברתיות מתוכניות טלוויזיה וסרטים, ואני מנסה להשתמש בהן באינטראקציות שלי." },
+  { section: "masking", reverse: true, title: "באינטראקציות חברתיות אינני שם/ה לב למה שהפנים או הגוף שלי עושים." },
+  { section: "assimilation", reverse: false, title: "במצבים חברתיים אני מרגיש/ה שאני מעמיד/ה פנים שאני 'נורמלי/ת'." },
 ];
 
 const CATQ = {
