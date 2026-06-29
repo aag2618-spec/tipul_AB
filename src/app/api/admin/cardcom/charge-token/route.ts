@@ -3,6 +3,7 @@
 // יוצר CardcomTransaction ושולח DoTransaction ל-Cardcom.
 
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { requirePermission } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
@@ -75,19 +76,74 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // Cardcom HTTP outside withAudit — see create-payment-page for rationale.
-    const transaction = await prisma.cardcomTransaction.create({
-      data: {
-        tenant: "ADMIN",
-        userId: subscriptionPayment.userId,
-        subscriptionPaymentId: subscriptionPayment.id,
-        amount: subscriptionPayment.amount,
-        currency: subscriptionPayment.currency,
-        status: "PENDING",
-        cardLast4: savedToken.cardLast4,
-        cardHolder: savedToken.cardHolder,
-      },
-    });
+    // ⚠️ CRITICAL: prevent concurrent charges on the same SubscriptionPayment.
+    // Two parallel POSTs would otherwise both pass the `status === "PAID"` read
+    // above and create two CardcomTransaction rows ⇒ the card is charged twice
+    // (each row gets its own id ⇒ its own uniqueAsmachta, so Cardcom does NOT
+    // dedupe). The Idempotency-Key guard above only protects when the SAME
+    // header is replayed on both requests — a double-click / two tabs / browser
+    // retry usually send NO key or different keys, so they slip through.
+    // We reject if any non-terminal ADMIN Cardcom tx already exists for this
+    // SubscriptionPayment, and run the check + create at Serializable isolation
+    // so a competing tx sees a serialization conflict and aborts. Mirrors the
+    // USER path in /api/payments/[id]/charge-saved-token.
+    // Cardcom HTTP stays outside withAudit — see create-payment-page for rationale.
+    let transaction;
+    try {
+      transaction = await prisma.$transaction(
+        async (tx) => {
+          const inFlight = await tx.cardcomTransaction.findFirst({
+            where: {
+              subscriptionPaymentId: subscriptionPayment.id,
+              tenant: "ADMIN",
+              status: { in: ["PENDING", "APPROVED"] },
+            },
+            select: { id: true, status: true },
+          });
+          if (inFlight) {
+            throw new Error(
+              inFlight.status === "APPROVED" ? "ALREADY_PAID" : "CHARGE_IN_PROGRESS"
+            );
+          }
+          return tx.cardcomTransaction.create({
+            data: {
+              tenant: "ADMIN",
+              userId: subscriptionPayment.userId,
+              subscriptionPaymentId: subscriptionPayment.id,
+              amount: subscriptionPayment.amount,
+              currency: subscriptionPayment.currency,
+              status: "PENDING",
+              cardLast4: savedToken.cardLast4,
+              cardHolder: savedToken.cardHolder,
+            },
+          });
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+      );
+    } catch (claimErr) {
+      const msg = claimErr instanceof Error ? claimErr.message : String(claimErr);
+      if (msg === "ALREADY_PAID") {
+        return NextResponse.json({ message: "התשלום כבר שולם" }, { status: 409 });
+      }
+      if (msg === "CHARGE_IN_PROGRESS") {
+        return NextResponse.json(
+          { message: "כבר מתבצע חיוב לתשלום זה. רענן ונסה שוב." },
+          { status: 409 }
+        );
+      }
+      // Postgres serialization failure on a parallel attempt: P2034 / 40001.
+      // Treat the loser as "in progress" (the winner is charging right now).
+      if (
+        claimErr instanceof Prisma.PrismaClientKnownRequestError &&
+        (claimErr.code === "P2034" || claimErr.code === "40001")
+      ) {
+        return NextResponse.json(
+          { message: "כבר מתבצע חיוב לתשלום זה. רענן ונסה שוב." },
+          { status: 409 }
+        );
+      }
+      throw claimErr;
+    }
 
     let cardcomResult;
     try {

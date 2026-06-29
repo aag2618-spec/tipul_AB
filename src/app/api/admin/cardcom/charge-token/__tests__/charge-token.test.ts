@@ -14,6 +14,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { Prisma } from "@prisma/client";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────
 
@@ -21,8 +22,10 @@ const requirePermissionMock = vi.fn();
 const findUniqueIdem = vi.fn();
 const subscriptionPaymentFind = vi.fn();
 const savedCardTokenFind = vi.fn();
+const cardcomTransactionFindFirst = vi.fn();
 const cardcomTransactionCreate = vi.fn();
 const cardcomTransactionUpdateStandalone = vi.fn();
+const prismaTransaction = vi.fn();
 const chargeTokenMock = vi.fn();
 
 const txCardcomTransactionUpdate = vi.fn().mockResolvedValue({});
@@ -44,6 +47,8 @@ vi.mock("@/lib/prisma", () => ({
       create: (...a: unknown[]) => cardcomTransactionCreate(...a),
       update: (...a: unknown[]) => cardcomTransactionUpdateStandalone(...a),
     },
+    // ה-route עוטף את ה-in-flight check + create ב-$transaction (Serializable).
+    $transaction: (...a: unknown[]) => prismaTransaction(...a),
   },
 }));
 
@@ -133,8 +138,18 @@ beforeEach(() => {
   findUniqueIdem.mockResolvedValue(null);
   subscriptionPaymentFind.mockResolvedValue(sub);
   savedCardTokenFind.mockResolvedValue(token);
+  cardcomTransactionFindFirst.mockResolvedValue(null); // ברירת מחדל: אין חיוב במקביל
   cardcomTransactionCreate.mockResolvedValue({ id: "ctx-1" });
   cardcomTransactionUpdateStandalone.mockResolvedValue({});
+  // ברירת מחדל: מריץ את ה-callback עם tx שמפנה לאותם mocks (findFirst+create).
+  prismaTransaction.mockImplementation((fn: (tx: unknown) => unknown) =>
+    fn({
+      cardcomTransaction: {
+        findFirst: (...a: unknown[]) => cardcomTransactionFindFirst(...a),
+        create: (...a: unknown[]) => cardcomTransactionCreate(...a),
+      },
+    })
+  );
   txSavedCardTokenUpdate.mockResolvedValue({});
   txUserFindUnique.mockResolvedValue({ subscriptionStatus: "TRIALING" });
   txUserUpdate.mockResolvedValue({});
@@ -226,6 +241,37 @@ describe("POST /api/admin/cardcom/charge-token — happy path", () => {
     await callPOST(makeRequest({ subscriptionPaymentId: "sp-1", savedCardTokenId: "tok-1" }));
     const arg = chargeTokenMock.mock.calls[0][0] as { uniqueAsmachta: string };
     expect(arg.uniqueAsmachta).toBe("ctx-1");
+  });
+});
+
+describe("POST /api/admin/cardcom/charge-token — concurrent-charge guard", () => {
+  it("returns 409 (in progress) when a PENDING tx already exists — no double charge", async () => {
+    cardcomTransactionFindFirst.mockResolvedValue({ id: "ctx-existing", status: "PENDING" });
+    const res = await callPOST(makeRequest({ subscriptionPaymentId: "sp-1", savedCardTokenId: "tok-1" }));
+    expect(res.status).toBe(409);
+    // לא נוצרה רשומה שנייה ולא בוצע חיוב ב-Cardcom.
+    expect(cardcomTransactionCreate).not.toHaveBeenCalled();
+    expect(chargeTokenMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 (already paid) when an APPROVED tx already exists", async () => {
+    cardcomTransactionFindFirst.mockResolvedValue({ id: "ctx-approved", status: "APPROVED" });
+    const res = await callPOST(makeRequest({ subscriptionPaymentId: "sp-1", savedCardTokenId: "tok-1" }));
+    expect(res.status).toBe(409);
+    expect(cardcomTransactionCreate).not.toHaveBeenCalled();
+    expect(chargeTokenMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 on Postgres serialization conflict (P2034) — loser aborts", async () => {
+    prismaTransaction.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError("serialization failure", {
+        code: "P2034",
+        clientVersion: "test",
+      })
+    );
+    const res = await callPOST(makeRequest({ subscriptionPaymentId: "sp-1", savedCardTokenId: "tok-1" }));
+    expect(res.status).toBe(409);
+    expect(chargeTokenMock).not.toHaveBeenCalled();
   });
 });
 
