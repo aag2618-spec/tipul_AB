@@ -512,8 +512,12 @@ export async function PUT(
           });
         }
 
+        // ⚠️ הקבלה חייבת לשאת את זהות מטפל הפגישה (מסוף/מספור/סוג העסק שלו),
+        // לא של המבצע (מזכירה/מנהלת/בעלים). תואם POST /api/payments. בלי זה
+        // קבלה ממוסמכת היתה יוצאת על המבצע, או לא יוצאת כלל (businessType=NONE).
+        const billingUserId = existingSession.therapistId ?? userId;
         const paymentResult = await createPaymentForSession({
-          userId,
+          userId: billingUserId,
           clientId: therapySession.clientId,
           sessionId: therapySession.id,
           amount: markAsPaid ? effectiveExpected : 0,

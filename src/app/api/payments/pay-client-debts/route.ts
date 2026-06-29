@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { processMultiSessionPayment } from "@/lib/payment-service";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
-import { isSecretary, secretaryCan } from "@/lib/scope";
+import prisma from "@/lib/prisma";
+import { buildClientWhere, isSecretary, secretaryCan } from "@/lib/scope";
 import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { parseBody } from "@/lib/validations/helpers";
 import { payClientDebtsSchema } from "@/lib/validations/payment";
@@ -76,8 +77,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ⚠️ userId לקבלות חייב להיות של המטפל בעל הלקוח (billing owner), לא של
+    // המבצע (מזכירה/מנהלת). הקבלה חייבת לשאת את זהות המטפל — מסוף/מספור/סוג
+    // העסק שלו — אחרת היא יוצאת על המבצע (או לא יוצאת כלל אם businessType=NONE).
+    // תואם POST /api/payments ו-PUT /api/payments/[id].
+    const clientForBilling = await prisma.client.findFirst({
+      where: { id: clientId, ...buildClientWhere(scopeUser) },
+      select: { therapistId: true },
+    });
+    const billingUserId = clientForBilling?.therapistId ?? userId;
+
     const result = await processMultiSessionPayment({
-      userId: userId,
+      userId: billingUserId,
       clientId,
       paymentIds,
       totalAmount: Number(totalAmount),

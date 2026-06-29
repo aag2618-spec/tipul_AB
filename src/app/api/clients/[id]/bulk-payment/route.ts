@@ -61,6 +61,11 @@ export async function POST(
       return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
     }
 
+    // ⚠️ הקבלה חייבת לשאת את זהות המטפל בעל הלקוח (billing owner), לא של המבצע
+    // (מזכירה/מנהלת). תואם POST /api/payments. בלי זה הקבלה יוצאת על המבצע
+    // (או לא יוצאת כלל אם businessType=NONE), והמייל/העותק הולכים אליו במקום למטפל.
+    const billingUserId = client.therapistId ?? userId;
+
     // Find unpaid/partially-paid completed sessions (oldest first)
     const sessions = await prisma.therapySession.findMany({
       where: {
@@ -95,7 +100,7 @@ export async function POST(
         paymentIds.push(s.payment.id);
       } else {
         const result = await createPaymentForSession({
-          userId: userId,
+          userId: billingUserId,
           clientId,
           sessionId: s.id,
           amount: 0,
@@ -111,7 +116,7 @@ export async function POST(
     }
 
     const result = await processMultiSessionPayment({
-      userId: userId,
+      userId: billingUserId,
       clientId,
       paymentIds,
       totalAmount: Number(amount),
@@ -127,7 +132,7 @@ export async function POST(
     // Surplus goes to credit — via trunk for audit trail
     if (result.remainingAmount > 0) {
       await createPaymentForSession({
-        userId: userId,
+        userId: billingUserId,
         clientId,
         amount: result.remainingAmount,
         expectedAmount: result.remainingAmount,

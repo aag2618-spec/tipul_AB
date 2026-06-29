@@ -47,14 +47,18 @@ export async function POST(
     // פיננסי אם מימוש ה-service ישתנה בעתיד.
     const ownedClient = await prisma.client.findFirst({
       where: { AND: [{ id }, buildClientWhere(scopeUser)] },
-      select: { id: true },
+      select: { id: true, therapistId: true },
     });
     if (!ownedClient) {
       return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
     }
 
+    // ⚠️ אם תיווצר קבלה על טעינת הקרדיט — היא חייבת לשאת את זהות המטפל בעל
+    // הלקוח, לא של המבצע (מזכירה/מנהלת). תואם POST /api/payments.
+    const billingUserId = ownedClient.therapistId ?? userId;
+
     const result = await createPaymentForSession({
-      userId: userId,
+      userId: billingUserId,
       clientId: id,
       amount: Number(amount),
       expectedAmount: Number(amount),
