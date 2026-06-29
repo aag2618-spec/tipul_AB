@@ -14,6 +14,7 @@ import {
   secretaryCan,
 } from "@/lib/scope";
 import { loadScopeUserWithMode } from "@/lib/secretary-mode";
+import { sanitizeUserHtml } from "@/lib/sanitize-html";
 import { parseBody } from "@/lib/validations/helpers";
 import { createConsentFormSchema } from "@/lib/validations/consent-form";
 
@@ -89,6 +90,11 @@ export async function POST(request: Request) {
     if ("error" in parsed) return parsed.error;
     const { type, title, content, isTemplate, clientId } = parsed.data;
 
+    // הגנה-לעומק (XSS): content הוא HTML עשיר מ-TipTap. zod אוכף אורך/טיפוס
+    // בלבד — לכן מנקים את ה-HTML בכתיבה (כמו ב-sessions/[id]/note) כדי שלא יישב
+    // payload זדוני ב-DB. התצוגה עדיין עוטפת ב-DOMPurify (הגנה כפולה).
+    const safeContent = sanitizeUserHtml(content);
+
     // אם נשלח clientId — וודא שהוא בתוך ה-scope של המשתמש + טען therapistId.
     let clientForOwnership: { id: string; therapistId: string } | null = null;
     if (clientId) {
@@ -113,7 +119,7 @@ export async function POST(request: Request) {
       data: {
         type,
         title,
-        content,
+        content: safeContent,
         isTemplate,
         clientId: clientId || null,
         therapistId: finalTherapistId,
