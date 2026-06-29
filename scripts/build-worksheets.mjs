@@ -411,7 +411,7 @@ function buildKidsHtml(ws) {
   const exItems = ex ? ex.items.map(kidsExampleItem).join("\n") : "";
   const exIntro = ex && ex.intro ? `<div class="kids-story"><div class="kstory-text"><p>${esc(ex.intro)}</p></div></div>` : "";
   const exCompassion = ex && ex.compassion ? `<div class="kcompassion"><span>💜</span> ${esc(ex.compassion)}</div>` : "";
-  const exTitle = ex ? `ככה ${esc(ex.name)} מילא/ה את הדף` : "דוגמה ממולאת";
+  const exTitle = ex ? `ככה נראה הדף הממולא של ${esc(ex.name)}` : "דוגמה ממולאת";
 
   return `<!DOCTYPE html>
 <html lang="he" dir="rtl">
