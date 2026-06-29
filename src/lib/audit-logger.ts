@@ -5,17 +5,20 @@
 // מידע רפואי-נפשי, וגם דרישה אתית של הפ"י.
 //
 // M2 (Stage 2.0 hardening): כתיבה כפולה — stdout/Render Logs (כפי שהיה)
-// ובמקביל DataAccessAuditLog ב-DB. ה-DB משמש מקור tamper-proof:
-//   • אסור UPDATE על השורות (אכיפה ברמת API — אין endpoint למחיקה/עדכון).
-//   • cron retention מוחק רק מעל 12 חודשים.
+// ובמקביל DataAccessAuditLog ב-DB. ה-DB משמש מקור tamper-evident:
+//   • אסור UPDATE/DELETE על השורות — אכיפה ברמת DB (טריגר append-only,
+//     prisma/sql/audit-append-only.sql) + שרשרת חתימות (prevHash/rowHash).
+//   • cron retention מוחק רק מעל 24 חודשים (תקנת בריאות הנפש — תוכן קליני).
 //   • ADMIN רואה דרך /api/admin/audit/data-access.
 //
 // כשלים: הכתיבה ל-DB אסינכרונית (fire-and-forget) ולא חוסמת את ה-user flow.
-// stdout נשאר תמיד — אם DB נופל, יש את הלוג ב-Render.
+// stdout נשאר תמיד — אם DB נופל, יש את הלוג ב-Render. בנוסף (חלק א', 2026-06-29)
+// כשל מתמשך מדליק AdminAlert דרך alertAuditWriteFailure — כדי שחור ב-trail יתגלה.
 
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { getClientIp } from "@/lib/get-client-ip";
+import { alertAuditWriteFailure } from "@/lib/audit-failure-alert";
 import type { NextRequest } from "next/server";
 
 export type AuditRecordType =
@@ -169,11 +172,14 @@ async function writeAuditToDb(params: DbAuditWriteParams): Promise<void> {
       },
     });
   } catch (err) {
-    // לא קריטי — יש את ה-stdout log כ-fallback
+    // לא קריטי ל-flow — יש את ה-stdout log כ-fallback. אבל כשל מתמשך הוא חור
+    // ב-trail של גישה ל-PHI → מדליקים AdminAlert (deduped) כדי שיתגלה ויטופל.
+    const message = err instanceof Error ? err.message : String(err);
     logger.warn("[AUDIT] Failed to persist to DB (stdout log preserved)", {
       recordType: params.recordType,
       action: params.action,
-      error: err instanceof Error ? err.message : String(err),
+      error: message,
     });
+    alertAuditWriteFailure("DataAccessAuditLog", message);
   }
 }

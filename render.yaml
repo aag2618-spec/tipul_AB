@@ -322,9 +322,9 @@ services:
       - key: CRON_SECRET
         sync: false
 
-  # Cron job for DataAccessAuditLog retention (M2) — מוחק רשומות > 12 חודש.
-  # תוכן רגיש: כל קריאה לתמלול/סיכום/הקלטה נרשמת. אחרי 12 חודש כבר לא רגולטורי.
-  # שבועי, יום ראשון 03:30 ישראל = 00:30 UTC (נפרד מ-audit-log-retention).
+  # Cron job for DataAccessAuditLog retention (M2) — מוחק רשומות > 24 חודש.
+  # תוכן קליני (תמלול/סיכום/הקלטה) תחת תקנת בריאות הנפש → שמירה 24 חודש
+  # (להבדיל מ-AdminAuditLog שהוא 12). שבועי, ראשון 03:30 ישראל = 00:30 UTC.
   - type: cron
     name: data-access-audit-retention
     runtime: node
