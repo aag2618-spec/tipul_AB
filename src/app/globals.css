@@ -175,7 +175,7 @@
   input[type="button"]:hover:not(:disabled),
   input[type="submit"]:hover:not(:disabled),
   input[type="reset"]:hover:not(:disabled) {
-    @apply brightness-105 shadow-sm bg-accent/40;
+    @apply brightness-105 shadow-sm bg-blue-100/50;
   }
 
   button:active:not(:disabled),
@@ -247,12 +247,12 @@
   
   /* Clickable card utility */
   .clickable-card {
-    @apply cursor-pointer transition-all duration-200 hover:shadow-md hover:bg-accent/40;
+    @apply cursor-pointer transition-all duration-200 hover:shadow-md hover:bg-blue-100/50;
   }
   
   /* Interactive item utility */
   .interactive-item {
-    @apply cursor-pointer transition-all duration-200 hover:bg-accent/50 hover:shadow-sm;
+    @apply cursor-pointer transition-all duration-200 hover:bg-blue-100/50 hover:shadow-sm;
   }
 }
 
