@@ -31,12 +31,16 @@ export function safeHttpUrl(input: string | null | undefined): string | null {
 
 /**
  * מנקה מחרוזת המיועדת לשורת הנושא של מייל (plaintext header).
- * מסיר תווי שורה/טאב (\r \n \t) כדי למנוע Email Header Injection — תוקף שיכניס
+ * מסיר תווי שורה/טאב כדי למנוע Email Header Injection — תוקף שיכניס
  * "\r\nBcc: ..." בשם המטפל/לקוח עלול להזריק כותרות מייל. שורת נושא היא plaintext,
  * לכן escapeHtml אינו מתאים כאן — צריך להסיר newlines.
+ *
+ * מטפל גם בתווי קו-מפריד נדירים מעבר ל-\r\n\t: \v \f (אנכי/דף), NEL (U+0085),
+ * ו-Unicode line/paragraph separator (U+2028/U+2029) — הגנה-לעומק עקבית, שכן
+ * שורת נושא חוקית היא חד-שורתית ותווים אלה לא לגיטימיים בה.
  */
 export function sanitizeEmailSubject(str: string): string {
-  return str.replace(/[\r\n\t]+/g, " ").trim();
+  return str.replace(/[\r\n\t\v\f\u0085\u2028\u2029]+/g, " ").trim();
 }
 
 /**
