@@ -6,7 +6,8 @@ import { escapeHtml, safeHttpUrl } from "@/lib/email-utils";
 import { sendSMSIfEnabled } from "@/lib/sms";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
-import { buildClientWhere, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
+import { buildClientWhere, isSecretary, secretaryCan } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -217,7 +218,7 @@ export async function POST(
       );
     }
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
 
     // Phase 1 (סבב 21): מזכירה ששולחת תזכורת חוב חייבת **גם** canSendReminders
     // (לעצם השליחה) **וגם** canViewDebts (כי התזכורת חושפת לה את גובה החוב

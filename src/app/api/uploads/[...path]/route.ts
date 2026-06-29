@@ -9,6 +9,7 @@ import {
   buildDocumentWhere,
   isSecretary,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { logDataAccess } from "@/lib/audit-logger";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +24,7 @@ export async function GET(
     const { userId, session, originalUserId, isImpersonating } = auth;
     const isAdminOrManager = session.user.role === "ADMIN" || session.user.role === "MANAGER";
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const clientWhere = buildClientWhere(scopeUser);
     // B5: למסמכים — buildDocumentWhere מבטיח שמטפל בקליניקה לא יראה
     // templates של קולגות (clientId=null + therapistId אחר).

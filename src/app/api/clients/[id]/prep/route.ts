@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { buildClientWhere, isSecretary, loadScopeUser } from "@/lib/scope";
+import { buildClientWhere, isSecretary } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { sanitizeUserHtml } from "@/lib/sanitize-html";
 
 // PHI scoped למשתמש — מונע cache. נטען על-פי-דרישה מכרטיס "הכנה לפגישה" בדשבורד.
@@ -18,7 +19,7 @@ export async function GET(
     const { userId } = auth;
 
     const { id } = await params;
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
 
     // "הכנה לפגישה" = תוכן קליני (נושאים + סיכומים). מזכירה חסומה לחלוטין —
     // כמו דף ההכנה וכמו GET /api/clients/[id]/summaries.

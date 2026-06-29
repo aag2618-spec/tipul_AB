@@ -6,6 +6,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { buildPaymentWhere, loadScopeUser } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
 import { logDataAccess } from "@/lib/audit-logger";
 import {
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status"); // PAID, PENDING, ALL
     const format = searchParams.get("format") || "csv"; // csv or json
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const paymentWhere = buildPaymentWhere(scopeUser);
 
     const extraFilters: Record<string, unknown> = {

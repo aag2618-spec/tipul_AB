@@ -28,7 +28,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
-import { loadScopeUser, isSecretary } from "@/lib/scope";
+import { isSecretary } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { logDataAccess } from "@/lib/audit-logger";
 import {
   checkRateLimit,
@@ -58,7 +59,7 @@ export async function POST(
     const { id: clientId } = await context.params;
 
     // 2. Scope
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
 
     // 3. Secretary block — DSAR חושף PHI קליני מלא (סיכומים, תמלולים, ניתוחי AI).
     //    מזכירה חסומה לחלוטין, גם אם יש לה canViewPayments.

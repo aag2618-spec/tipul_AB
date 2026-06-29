@@ -7,6 +7,7 @@ import {
   buildSessionWhere,
   buildPaymentWhere,
   isSecretary,
+  isSecretaryTherapist,
   isClinicOwner,
   isClinicTherapist,
   isNonTherapistManager,
@@ -90,6 +91,31 @@ describe("isSecretary", () => {
     expect(isSecretary(owner)).toBe(false);
     expect(isSecretary(clinicTherapist)).toBe(false);
     expect(isSecretary(adminUser)).toBe(false);
+  });
+});
+
+describe("isSecretaryTherapist", () => {
+  it("true only for a secretary with secretaryIsTherapist=true", () => {
+    expect(
+      isSecretaryTherapist({ ...secretaryFull, secretaryIsTherapist: true })
+    ).toBe(true);
+  });
+  it("false for a secretary without the flag (regular secretary)", () => {
+    expect(isSecretaryTherapist(secretaryFull)).toBe(false); // undefined
+    expect(
+      isSecretaryTherapist({ ...secretaryFull, secretaryIsTherapist: false })
+    ).toBe(false);
+    expect(
+      isSecretaryTherapist({ ...secretaryFull, secretaryIsTherapist: null })
+    ).toBe(false);
+  });
+  it("false for non-secretaries even if the flag is somehow true", () => {
+    expect(
+      isSecretaryTherapist({ ...clinicTherapist, secretaryIsTherapist: true })
+    ).toBe(false);
+    expect(
+      isSecretaryTherapist({ ...owner, secretaryIsTherapist: true })
+    ).toBe(false);
   });
 });
 

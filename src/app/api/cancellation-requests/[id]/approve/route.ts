@@ -9,6 +9,7 @@ import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { checkRateLimit, EMAIL_SEND_USER_RATE_LIMIT } from "@/lib/rate-limit";
 import { loadScopeUser, buildSessionWhere } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { parseBody } from "@/lib/validations/helpers";
 import { approveCancellationSchema } from "@/lib/validations/misc";
 
@@ -50,7 +51,7 @@ export async function POST(
     const { adminNotes } = parsed.data;
 
     // H1: scope-based ownership — מאפשר CLINIC_OWNER לאשר ביטולים של צוות.
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const cancellationRequest = await prisma.cancellationRequest.findFirst({
       where: {
         AND: [{ id: requestId }, { session: buildSessionWhere(scopeUser) }],

@@ -14,9 +14,11 @@ export const dynamic = "force-dynamic";
 //      פותחת תיק חדש.
 //   2. select מצומצם — רק id, name, email, clinicRole (אין billing, אין
 //      _count, אין secretaryPermissions). מתאים ל-UI dropdown.
-//   3. מסנן `isBlocked=false` ו-`clinicRole != SECRETARY` — תאם
-//      ל-validation ב-`resolveTherapistIdForClient` (scope.ts L562-566)
-//      כך שכל ערך שנבחר ב-picker יעבור גם את בדיקת השרת.
+//   3. מסנן `isBlocked=false`, וכולל THERAPIST + OWNER + מזכיר/ה-מטפל/ת
+//      (SECRETARY עם secretaryIsTherapist=true) — תאם ל-validation ב-
+//      `resolveTherapistIdForClient` (scope.ts) שמתיר שיוך למזכירה-מטפלת,
+//      כך שכל ערך שנבחר ב-picker יעבור גם את בדיקת השרת. מזכירה רגילה
+//      (בלי הדגל) עדיין מסוננת החוצה.
 //
 // גישה: OWNER או SECRETARY בקליניקה (organizationId != null). מטפל רגיל
 // בקליניקה ומטפל עצמאי לא מציגים picker, ולכן אינם נדרשים פה — 403.
@@ -45,7 +47,11 @@ export async function GET() {
       where: {
         organizationId: scopeUser.organizationId,
         isBlocked: false,
-        clinicRole: { in: ["THERAPIST", "OWNER"] },
+        OR: [
+          { clinicRole: { in: ["THERAPIST", "OWNER"] } },
+          // מזכיר/ה שהוא/היא גם מטפל/ת — מטפל/ת אחראי/ת לכל דבר.
+          { clinicRole: "SECRETARY", secretaryIsTherapist: true },
+        ],
       },
       select: {
         id: true,

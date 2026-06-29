@@ -3,7 +3,8 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { serializePrisma } from "@/lib/serialize";
-import { buildClientWhere, isSecretary, loadScopeUser } from "@/lib/scope";
+import { buildClientWhere, isSecretary } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { parseBody } from "@/lib/validations/helpers";
 import { updateClientApproachesSchema } from "@/lib/validations/client-clinical";
 
@@ -24,7 +25,7 @@ export async function PATCH(
     if ("error" in parsed) return parsed.error;
     const { therapeuticApproaches, approachNotes, culturalContext } = parsed.data;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
 
     // Therapeutic approaches are clinical content — secretaries cannot edit it.
     if (isSecretary(scopeUser)) {

@@ -5,6 +5,7 @@ import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { logDataAccess } from "@/lib/audit-logger";
 import { loadScopeUser, buildDocumentWhere } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import storage from "@/lib/storage";
 import { parseBody } from "@/lib/validations/helpers";
 import { updateDocumentSchema } from "@/lib/validations/document";
@@ -34,7 +35,7 @@ export const dynamic = "force-dynamic";
 // B5: בעלות על Document נשלפת מ-scope.ts (buildDocumentWhere). כך THERAPIST
 // בקליניקה רואה רק את הטמפלייטים שלו ולא של קולגות, וההיגיון מרוכז במקום אחד.
 async function buildDocumentOwnershipWhere(userId: string) {
-  const scopeUser = await loadScopeUser(userId);
+  const scopeUser = await loadScopeUserWithMode(userId);
   return {
     scopeUser,
     where: buildDocumentWhere(scopeUser),

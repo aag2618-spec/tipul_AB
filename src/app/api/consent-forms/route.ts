@@ -13,6 +13,7 @@ import {
   resolveTherapistIdForClientChild,
   secretaryCan,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { parseBody } from "@/lib/validations/helpers";
 import { createConsentFormSchema } from "@/lib/validations/consent-form";
 
@@ -28,7 +29,7 @@ export async function GET(request: Request) {
     const clientId = searchParams.get("clientId");
     const isTemplate = searchParams.get("isTemplate") === "true";
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     // גייט מזכירה — בעלת הקליניקה מגדירה ב-/clinic-admin/members אם
     // המזכירה רואה טפסי הסכמה. ברירת מחדל בטוחה: false.
     if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewConsentForms")) {
@@ -74,7 +75,7 @@ export async function POST(request: Request) {
     if ("error" in auth) return auth.error;
     const { userId, originalUserId, isImpersonating } = auth;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewConsentForms")) {
       return NextResponse.json(
         { message: "אין הרשאה ליצירת טפסי הסכמה" },

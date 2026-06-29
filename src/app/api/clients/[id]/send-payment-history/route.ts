@@ -6,7 +6,8 @@ import { subMonths, startOfDay, endOfDay } from "date-fns";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
-import { buildClientWhere, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
+import { buildClientWhere, isSecretary, secretaryCan } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
 import { checkRateLimit, PAYMENT_HISTORY_RATE_LIMIT } from "@/lib/rate-limit";
 import { parseBody } from "@/lib/validations/helpers";
@@ -50,7 +51,7 @@ export async function POST(
     if ("error" in parsed) return parsed.error;
     const { period } = parsed.data;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
 
     if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewPayments")) {
       return NextResponse.json(

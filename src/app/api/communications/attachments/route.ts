@@ -7,6 +7,7 @@ import { logDelegatedCreate } from "@/lib/audit";
 
 import { requireAuth } from "@/lib/api-auth";
 import { buildClientWhere, loadScopeUser, resolveTherapistIdForClientChild } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { parseBody, parseSearchParams } from "@/lib/validations/helpers";
 import {
   attachmentDownloadQuerySchema,
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const clientWhere = buildClientWhere(scopeUser);
 
     const parsedQuery = parseSearchParams(request.url, attachmentDownloadQuerySchema);
@@ -125,7 +126,7 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId, originalUserId, isImpersonating } = auth;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const clientWhere = buildClientWhere(scopeUser);
 
     const parsedBody = await parseBody(request, saveAttachmentSchema);

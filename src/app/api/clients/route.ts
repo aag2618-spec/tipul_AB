@@ -9,10 +9,10 @@ import { logDelegatedCreate } from "@/lib/audit";
 import {
   buildClientWhere,
   isSecretary,
-  loadScopeUser,
   resolveTherapistIdForClient,
   secretaryCan,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const includeQuick = searchParams.get("includeQuick") === "true";
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const scopeWhere = buildClientWhere(scopeUser);
 
     const extraConditions: Prisma.ClientWhereInput = {};
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId, originalUserId, isImpersonating } = auth;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canCreateClient")) {
       return NextResponse.json(
         { message: "אין הרשאה ליצירת מטופל" },

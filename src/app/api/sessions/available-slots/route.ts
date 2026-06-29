@@ -6,8 +6,8 @@ import { requireAuth } from "@/lib/api-auth";
 import {
   isClinicOwner,
   isSecretary,
-  loadScopeUser,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
 import {
   toIsraelDate,
@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
 
     // ── פתרון רשימת המטפלים לבדיקה (scope) ──────────────────────────────
     // בעלים/מזכירה בארגון → כל המטפלים (OWNER+THERAPIST) בארגון.

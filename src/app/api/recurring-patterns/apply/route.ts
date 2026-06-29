@@ -7,6 +7,7 @@ import { syncSessionToGoogleCalendar } from "@/lib/google-calendar-sync";
 
 import { requireAuth } from "@/lib/api-auth";
 import { loadScopeUser } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { parseBody } from "@/lib/validations/helpers";
 import { applyRecurringPatternsSchema } from "@/lib/validations/recurring-pattern";
 
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
     // לא מפעילים תבניות של מטפלים אחרים מכאן (הראוט מסנן לפי userId בדיוק).
     // הסיבה היחידה לטעון ScopeUser כאן: לגזור organizationId לרשומות פגישה
     // חדשות (preserves clinic FK).
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
 
     const parsed = await parseBody(request, applyRecurringPatternsSchema);
     if ("error" in parsed) return parsed.error;

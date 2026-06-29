@@ -2,7 +2,8 @@ import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { loadScopeUser, buildClientWhere, isSecretary } from "@/lib/scope";
+import { buildClientWhere, isSecretary } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { sanitizeUserHtml } from "@/lib/sanitize-html";
 import { logger } from "@/lib/logger";
 import { SessionPrepView } from "@/components/clients/session-prep-view";
@@ -22,7 +23,7 @@ export default async function SessionPrepPage({
 
   let scopeUser;
   try {
-    scopeUser = await loadScopeUser(session.user.id);
+    scopeUser = await loadScopeUserWithMode(session.user.id);
   } catch (error) {
     logger.error("[SessionPrepPage] Failed to load scope user:", {
       clientId: id,

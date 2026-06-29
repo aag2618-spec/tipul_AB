@@ -8,6 +8,7 @@ import {
   buildClientWhere,
   canSecretaryAccessModel,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 
 // GET - קבל תשובה ספציפית
 export const dynamic = "force-dynamic";
@@ -21,7 +22,7 @@ export async function GET(
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     if (!canSecretaryAccessModel(scopeUser, "QuestionnaireResponse")) {
       return NextResponse.json(
         { message: "אין הרשאה לתוכן קליני" },

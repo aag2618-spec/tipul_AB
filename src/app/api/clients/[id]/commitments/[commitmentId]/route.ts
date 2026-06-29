@@ -5,14 +5,15 @@ import { logger } from "@/lib/logger";
 import { serializePrisma } from "@/lib/serialize";
 import { parseBody } from "@/lib/validations/helpers";
 import { updateCommitmentSchema } from "@/lib/validations/client";
-import { loadScopeUser, buildClientWhere, isSecretary, secretaryCan } from "@/lib/scope";
+import { buildClientWhere, isSecretary, secretaryCan } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { logDataAccess } from "@/lib/audit-logger";
 import { CommitmentStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
 async function verifyAccess(userId: string, clientId: string, commitmentId: string) {
-  const scopeUser = await loadScopeUser(userId);
+  const scopeUser = await loadScopeUserWithMode(userId);
   const client = await prisma.client.findFirst({
     where: { AND: [{ id: clientId }, buildClientWhere(scopeUser)] },
     select: { id: true },

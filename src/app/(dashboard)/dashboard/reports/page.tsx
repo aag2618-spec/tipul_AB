@@ -10,7 +10,6 @@ import { getIsraelYear, parseIsraelTime } from "@/lib/date-utils";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
 import { paymentRevenueContribution } from "@/lib/payment-utils";
 import {
-  loadScopeUser,
   buildClientWhere,
   buildSessionWhere,
   buildPaymentWhere,
@@ -18,6 +17,7 @@ import {
   secretaryCan,
   type ScopeUser,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { shouldScopePersonal } from "@/lib/view-scope";
 
 // מונע cache leak בין מטפלים — דוח מכיל PHI scoped למשתמש
@@ -240,7 +240,7 @@ export default async function ReportsPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return null;
 
-  const scopeUser = await loadScopeUser(session.user.id);
+  const scopeUser = await loadScopeUserWithMode(session.user.id);
 
   // Phase 1 (סבב 21): canViewStats — היה dead permission עד היום (מוגדר במטריצה
   // אך לא נאכף בשום route). מזכירה בלי canViewStats לא תקבל גישה לדוחות

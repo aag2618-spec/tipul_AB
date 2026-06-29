@@ -13,10 +13,10 @@ import {
   buildSessionWhere,
   isClinicOwner,
   isSecretary,
-  loadScopeUser,
   resolveTherapistIdForSession,
   secretaryCan,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { calculatePaidAmount } from "@/lib/payment-utils";
 import {
   findClinicLocationConflict,
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     // לכל הקוראים הקיימים (יומן, פגישות קודמות וכו'). משמש את דיאלוג "כל הפגישות".
     const includePolicy = searchParams.get("includePolicy") === "true";
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const scopeWhere = buildSessionWhere(scopeUser);
 
     const extraConditions: Prisma.TherapySessionWhereInput = {};
@@ -180,7 +180,7 @@ export async function POST(request: NextRequest) {
     if ("error" in parsed) return parsed.error;
     const { clientId, startTime, endTime, type, price, location, notes, topic, isRecurring, allowOverlap, therapistId: requestedTherapistId, roomId } = parsed.data;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const clientScopeWhere = buildClientWhere(scopeUser);
 
     // Phase 1 (סבב 21): מזכירה אסור לה ליצור פגישה ללא secretaryPermissions —

@@ -31,6 +31,7 @@ import {
   buildPaymentWhere,
   loadScopeUser,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +53,7 @@ export async function GET(
   // למטה.
   let scopeUser;
   try {
-    scopeUser = await loadScopeUser(userId);
+    scopeUser = await loadScopeUserWithMode(userId);
   } catch (scopeErr) {
     logger.error("[cardcom-receipt-pdf] scope load failed", {
       userId,

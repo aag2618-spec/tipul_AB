@@ -5,6 +5,7 @@ import { requireAuth } from "@/lib/api-auth";
 import { parseBody } from "@/lib/validations/helpers";
 import { taskTemplateSchema } from "@/lib/validations/staff-task";
 import { canManageStaffTasks, loadScopeUser } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export async function PATCH(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const scopeUser = await loadScopeUser(auth.userId);
+    const scopeUser = await loadScopeUserWithMode(auth.userId);
     if (!scopeUser.organizationId || !canManageStaffTasks(scopeUser)) {
       return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
     }
@@ -72,7 +73,7 @@ export async function DELETE(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const scopeUser = await loadScopeUser(auth.userId);
+    const scopeUser = await loadScopeUserWithMode(auth.userId);
     if (!scopeUser.organizationId || !canManageStaffTasks(scopeUser)) {
       return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
     }

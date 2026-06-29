@@ -13,7 +13,8 @@ import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
-import { loadScopeUser, buildClientWhere } from "@/lib/scope";
+import { buildClientWhere } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,7 @@ export async function DELETE(
   const { id: clientId, tokenId } = await context.params;
 
   // H1: scope-based ownership check — 404 אחיד מונע enumeration.
-  const scopeUser = await loadScopeUser(userId);
+  const scopeUser = await loadScopeUserWithMode(userId);
   let client;
   try {
     client = await prisma.client.findFirst({

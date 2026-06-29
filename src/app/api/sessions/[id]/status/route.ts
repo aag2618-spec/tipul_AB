@@ -7,7 +7,8 @@ import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
 import { syncSessionToGoogleCalendar, syncSessionDeletionToGoogleCalendar } from "@/lib/google-calendar-sync";
-import { buildSessionWhere, isSecretary, loadScopeUser } from "@/lib/scope";
+import { buildSessionWhere, isSecretary } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { parseBody } from "@/lib/validations/helpers";
 import { sessionStatusSchema } from "@/lib/validations/session";
 import { applyCommitmentUsageOnStatusChange } from "@/lib/commitment-usage";
@@ -67,7 +68,7 @@ export async function PATCH(
     if ("error" in parsed) return parsed.error;
     const { status, cancellationReason } = parsed.data;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const sessionScopeWhere = buildSessionWhere(scopeUser);
 
     const therapySession = await prisma.therapySession.findFirst({

@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { buildClientWhere, buildSessionWhere, isSecretary, loadScopeUser } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { requireContentFilterEnabled } from "@/lib/content-unblock";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +21,7 @@ export async function GET(
     const { userId } = auth;
     const { id } = await params;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     if (isSecretary(scopeUser)) {
       return NextResponse.json({ message: "אין הרשאה לתוכן קליני" }, { status: 403 });
     }

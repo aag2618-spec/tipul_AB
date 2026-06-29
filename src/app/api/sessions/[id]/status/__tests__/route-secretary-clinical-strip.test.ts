@@ -34,6 +34,9 @@ vi.mock("@/lib/scope", () => ({
   isSecretary: (...a: unknown[]) => isSecretary(...a),
   buildSessionWhere: () => ({}),
 }));
+vi.mock("@/lib/secretary-mode", () => ({
+  loadScopeUserWithMode: (...a: unknown[]) => loadScopeUser(...a),
+}));
 vi.mock("@/lib/commitment-usage", () => ({
   applyCommitmentUsageOnStatusChange: vi.fn(),
 }));

@@ -44,6 +44,7 @@ import {
 } from "@/components/dashboard/secretary-quick-actions";
 import { PersonalTasksWidget } from "@/components/tasks/personal-tasks-widget";
 import { AttentionInbox } from "@/components/dashboard/attention-inbox";
+import { SecretaryModeSwitch } from "@/components/secretary-mode-switch";
 import type { Prisma } from "@prisma/client";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -383,9 +384,12 @@ async function getSecretaryData(scopeUser: ScopeUser) {
 export async function SecretaryHome({
   scopeUser,
   userName,
+  canSwitchToTherapist = false,
 }: {
   scopeUser: ScopeUser;
   userName?: string | null;
+  // מזכיר/ה שהוא/היא גם מטפל/ת — מציג כפתור מעבר ל"מסך הטיפול שלי".
+  canSwitchToTherapist?: boolean;
 }) {
   const {
     todaySessions,
@@ -472,6 +476,13 @@ export async function SecretaryHome({
           <p className="text-muted-foreground mt-1">מוקד הקליניקה · {todayLabel}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {canSwitchToTherapist && (
+            <SecretaryModeSwitch
+              to="therapist"
+              href="/dashboard"
+              className="border border-blue-500/40 bg-blue-500/5 text-blue-600 dark:text-blue-300 hover:bg-blue-500/10"
+            />
+          )}
           {canCreateClient && (
             <Button asChild variant="outline">
               <Link href="/dashboard/clients/new">

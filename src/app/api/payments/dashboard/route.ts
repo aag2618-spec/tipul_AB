@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 import { getIsraelYear, getIsraelMonth } from "@/lib/date-utils";
 import { requireAuth } from "@/lib/api-auth";
 import { buildPaymentWhere, loadScopeUser } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { shouldScopePersonal } from "@/lib/view-scope";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
 import { getAllClientsDebtSummary } from "@/lib/payment-service";
@@ -17,7 +18,7 @@ export async function GET() {
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     // היקף לפי המתג הגלובלי "שלי / כל הקליניקה" (cookie, נשלח אוטומטית בבקשה).
     const personalOnly = await shouldScopePersonal(scopeUser);
     const paymentWhere = buildPaymentWhere(scopeUser, { personalOnly });

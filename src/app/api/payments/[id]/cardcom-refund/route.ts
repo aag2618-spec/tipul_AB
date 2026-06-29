@@ -22,6 +22,7 @@ import {
   loadScopeUser,
   secretaryCan,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { cardcomRefundSchema } from "@/lib/validations/payment";
 
 export const dynamic = "force-dynamic";
@@ -76,7 +77,7 @@ export async function POST(
   // עדיין שונה).
   let scopeUser;
   try {
-    scopeUser = await loadScopeUser(userId);
+    scopeUser = await loadScopeUserWithMode(userId);
   } catch (scopeErr) {
     logger.error("[user/cardcom-refund] scope load failed", {
       userId,

@@ -4,7 +4,8 @@ import { sendEmail } from "@/lib/resend";
 import { createSessionConfirmationEmail, formatSessionDateTime } from "@/lib/email-templates";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
-import { buildSessionWhere, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
+import { buildSessionWhere, isSecretary, secretaryCan } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { checkRateLimit, EMAIL_SEND_USER_RATE_LIMIT } from "@/lib/rate-limit";
 
 // Send session confirmation email immediately after session creation
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
 
     if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canSendReminders")) {
       return NextResponse.json(

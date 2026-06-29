@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
-import { loadScopeUser } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +51,7 @@ export async function GET() {
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const now = new Date();
 
     // (1) Self-overlap: כל הפגישות שלי, מיון לפי startTime.

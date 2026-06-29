@@ -11,6 +11,7 @@ import {
   loadScopeUser,
   resolveTherapistIdForClientChild,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { validateFileBuffer, safeExtensionForMime, stripImageMetadata, getCategoryMaxSize } from "@/lib/file-validation";
 import { documentFormFieldsSchema } from "@/lib/validations/document";
 
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get("clientId");
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     // B5: buildDocumentWhere מרכז את הלוגיקה. THERAPIST רואה רק
     // טמפלייטים שלו (לא של קולגות), OWNER/SECRETARY רואים את כל הארגון.
     const docWhere = buildDocumentWhere(scopeUser);
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const clientWhere = buildClientWhere(scopeUser);
 
     // Verify client ownership if provided + load therapistId for therapist-resolution.

@@ -5,6 +5,7 @@ import storage from "@/lib/storage";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { loadScopeUser, isSecretary, secretaryCan } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
 import { validateFileBuffer, stripImageMetadata, getCategoryMaxSize } from "@/lib/file-validation";
 import { checkRateLimit, EMAIL_SEND_USER_RATE_LIMIT } from "@/lib/rate-limit";
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
     // H3 (סבב אבטחה 14, 2026-05-19): scope check — מזכירה ללא canSendReminders
     // לא תוכל לשלוח reply (שלוח מייל ללקוח = שליחת תזכורת). אותו pattern כמו
     // `src/app/api/email/send/route.ts:57-62`.
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canSendReminders")) {
       return NextResponse.json(
         { message: "אין הרשאה לשליחת תזכורות" },

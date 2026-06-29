@@ -45,6 +45,9 @@ vi.mock("@/lib/scope", () => ({
   secretaryCan: (...a: unknown[]) => secretaryCan(...a),
   buildSessionWhere: () => ({}),
 }));
+vi.mock("@/lib/secretary-mode", () => ({
+  loadScopeUserWithMode: (...a: unknown[]) => loadScopeUser(...a),
+}));
 vi.mock("@/lib/session-overlap", () => ({
   findClinicLocationConflict: (...a: unknown[]) => findClinicLocationConflict(...a),
   buildClinicConflictMessage: (...a: unknown[]) => buildClinicConflictMessage(...a),

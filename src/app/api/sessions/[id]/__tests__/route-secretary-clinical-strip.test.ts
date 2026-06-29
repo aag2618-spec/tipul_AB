@@ -40,6 +40,9 @@ vi.mock("@/lib/scope", () => ({
   buildSessionWhere: () => ({}),
   secretaryCan: () => true,
 }));
+vi.mock("@/lib/secretary-mode", () => ({
+  loadScopeUserWithMode: (...a: unknown[]) => loadScopeUser(...a),
+}));
 vi.mock("@/lib/payment-service", () => ({ createPaymentForSession: vi.fn() }));
 vi.mock("@/lib/payment-utils", () => ({ calculatePaidAmount: () => 0 }));
 vi.mock("@/lib/resend", () => ({ sendEmail: vi.fn() }));

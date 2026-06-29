@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { buildSessionWhere, loadScopeUser } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { waitlistScope } from "@/lib/waitlist-scope";
 import {
   rankWaitlistMatches,
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
 
     // הפגישה חייבת להיות ב-scope (בידוד tenant).
     const session = await prisma.therapySession.findFirst({

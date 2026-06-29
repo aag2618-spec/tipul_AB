@@ -3,7 +3,8 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { parseIsraelTime } from "@/lib/date-utils";
 import { requireAuth } from "@/lib/api-auth";
-import { buildSessionWhere, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
+import { buildSessionWhere, isSecretary, secretaryCan } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { shouldScopePersonal } from "@/lib/view-scope";
 import { calculatePaidAmount } from "@/lib/payment-utils";
 import { serializePrisma } from "@/lib/serialize";
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     // היקף לפי המתג הגלובלי "שלי / כל הקליניקה" (cookie). הבקשה מהדפדפן שולחת
     // את ה-cookie אוטומטית (same-origin). לבעל/ת קליניקה ב"שלי" → רק הפגישות
     // שלו/ה; לשאר התפקידים — ללא שינוי.

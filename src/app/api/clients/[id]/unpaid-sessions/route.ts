@@ -3,7 +3,8 @@ import prisma from "@/lib/prisma";
 import { calculatePaidAmount } from "@/lib/payment-utils";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
-import { buildClientWhere, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
+import { buildClientWhere, isSecretary, secretaryCan } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export async function GET(
 
     const { id: clientId } = await params;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
 
     if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewDebts")) {
       return NextResponse.json(

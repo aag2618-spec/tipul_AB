@@ -14,6 +14,7 @@ import {
   loadScopeUser,
   secretaryCan,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +52,7 @@ export async function GET(
 
     const { id } = await params;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const paymentWhere = buildPaymentWhere(scopeUser);
 
     // include role-aware: למזכירה חושפים שדות אדמיניסטרטיביים בלבד —
@@ -146,7 +147,7 @@ export async function PUT(
     }
     const { status, method, notes, amount, creditUsed, issueReceipt, prepareCardcom, paymentMode } = parsed.data;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const paymentWhere = buildPaymentWhere(scopeUser);
 
     // עדכון תשלום ע"י מזכירה דורש canViewPayments — שינוי תשלום מחייב צפייה.

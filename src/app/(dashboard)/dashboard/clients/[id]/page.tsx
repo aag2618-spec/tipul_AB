@@ -48,12 +48,12 @@ import { he } from "date-fns/locale";
 import { calculateDebtFromPayments } from "@/lib/payment-utils";
 import { logger } from "@/lib/logger";
 import {
-  loadScopeUser,
   buildClientWhere,
   isSecretary,
   secretaryCan,
   getClientSafeSelectForSecretary,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import type { Prisma } from "@prisma/client";
 
 // מונע cache leak בין מטפלים — דף מכיל PHI scoped למשתמש
@@ -297,7 +297,7 @@ export default async function ClientPage({
   // שמחזיר 403 בלחיצה.
   let canExportClient = true;
   try {
-    const scopeUser = await loadScopeUser(session.user.id);
+    const scopeUser = await loadScopeUserWithMode(session.user.id);
     asSecretary = isSecretary(scopeUser);
     canViewPayments = secretaryCan(scopeUser, "canViewPayments");
     canSendDebtReminders =

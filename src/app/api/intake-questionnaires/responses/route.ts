@@ -8,6 +8,7 @@ import {
   buildClientWhere,
   canSecretaryAccessModel,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { parseBody } from "@/lib/validations/helpers";
 import { createIntakeResponseSchema } from "@/lib/validations/intake-questionnaire";
 
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     // תשובות גולמיות של intake הן תוכן קליני — חסום למזכירה
     if (!canSecretaryAccessModel(scopeUser, "QuestionnaireResponse")) {
       return NextResponse.json(
@@ -87,7 +88,7 @@ export async function GET(req: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     if (!canSecretaryAccessModel(scopeUser, "QuestionnaireResponse")) {
       return NextResponse.json(
         { message: "אין הרשאה לתוכן קליני" },

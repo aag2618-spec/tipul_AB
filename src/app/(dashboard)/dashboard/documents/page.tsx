@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { FolderOpen, Plus, FileText, CheckCircle, Clock, User, Download } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
-import { loadScopeUser, buildDocumentWhere, type ScopeUser } from "@/lib/scope";
+import { buildDocumentWhere, type ScopeUser } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 
 // מונע cache leak בין מטפלים — דף מכיל PHI scoped למשתמש
 export const dynamic = "force-dynamic";
@@ -26,7 +27,7 @@ export default async function DocumentsPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return null;
 
-  const scopeUser = await loadScopeUser(session.user.id);
+  const scopeUser = await loadScopeUserWithMode(session.user.id);
   const documents = await getDocuments(scopeUser);
   
   const getTypeLabel = (type: string) => {

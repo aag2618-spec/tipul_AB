@@ -3,7 +3,8 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { SessionsView } from "@/components/sessions/sessions-view";
-import { loadScopeUser, buildSessionWhere, isSecretary, isClinicOwner } from "@/lib/scope";
+import { buildSessionWhere, isSecretary, isClinicOwner } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { shouldScopePersonal } from "@/lib/view-scope";
 
 // מונע cache leak בין מטפלים — דף מכיל PHI scoped למשתמש
@@ -38,7 +39,7 @@ export default async function SessionsPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return null;
 
-  const scopeUser = await loadScopeUser(session.user.id);
+  const scopeUser = await loadScopeUserWithMode(session.user.id);
   const personalOnly = await shouldScopePersonal(scopeUser);
   const sessionWhere = buildSessionWhere(scopeUser, { personalOnly });
   const includeNote = !isSecretary(scopeUser);

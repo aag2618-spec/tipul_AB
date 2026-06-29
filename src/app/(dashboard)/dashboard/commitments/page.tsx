@@ -3,11 +3,11 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { FileCheck } from "lucide-react";
 import {
-  loadScopeUser,
   buildClientWhere,
   isClinicOwner,
   isSecretary,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { shouldScopePersonal } from "@/lib/view-scope";
 import {
   CommitmentsBrowser,
@@ -21,7 +21,7 @@ export default async function CommitmentsPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return null;
 
-  const scopeUser = await loadScopeUser(session.user.id);
+  const scopeUser = await loadScopeUserWithMode(session.user.id);
   const personalOnly = await shouldScopePersonal(scopeUser);
   const clientWhere = buildClientWhere(scopeUser, { personalOnly });
 

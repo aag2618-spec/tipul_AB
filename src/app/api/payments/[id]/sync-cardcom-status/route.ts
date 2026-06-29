@@ -13,6 +13,7 @@ import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
 import { syncCardcomTransaction } from "@/lib/cardcom/sync-cardcom-payment";
 import { loadScopeUser, buildPaymentWhere } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,7 @@ export async function POST(
   const { id: paymentId } = await context.params;
 
   // H1: scope-based ownership (החלפת therapistId === userId).
-  const scopeUser = await loadScopeUser(userId);
+  const scopeUser = await loadScopeUserWithMode(userId);
   const paymentScope = buildPaymentWhere(scopeUser);
   if ("id" in paymentScope && paymentScope.id === "__deny__") {
     return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });

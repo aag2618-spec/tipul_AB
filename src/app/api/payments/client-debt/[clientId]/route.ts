@@ -3,6 +3,7 @@ import { getClientDebtSummary } from "@/lib/payment-service";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { loadScopeUser } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export async function GET(
     const { userId, session } = auth;
 
     const { clientId } = await params;
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const result = await getClientDebtSummary(userId, clientId, scopeUser);
 
     if (!result) {

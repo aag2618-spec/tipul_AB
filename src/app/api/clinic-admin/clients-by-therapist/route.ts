@@ -17,14 +17,17 @@ export async function GET() {
     if ("error" in auth) return auth.error;
     const { organizationId } = auth;
 
-    // כולל גם THERAPIST וגם OWNER (הבעלים גם מטפל בלקוחות). מסנן חסומים.
-    // ARCHIVED clients מוסתרים — המטרה היא חלוקת תיקים פעילים. אם בעלים
-    // ירצה לראות גם ארכיון — אפשר להוסיף flag אחר כך.
+    // כולל THERAPIST, OWNER, ומזכיר/ה-מטפל/ת (SECRETARY+secretaryIsTherapist) —
+    // כדי שתהיה יעד העברה תקף ושהמטופלים שלה יוצגו ב"מטופלים לפי מטפל". מסנן
+    // חסומים. ARCHIVED clients מוסתרים — המטרה היא חלוקת תיקים פעילים.
     const therapists = await prisma.user.findMany({
       where: {
         organizationId,
         isBlocked: false,
-        clinicRole: { in: ["OWNER", "THERAPIST"] },
+        OR: [
+          { clinicRole: { in: ["OWNER", "THERAPIST"] } },
+          { clinicRole: "SECRETARY", secretaryIsTherapist: true },
+        ],
       },
       select: {
         id: true,

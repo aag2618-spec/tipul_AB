@@ -9,6 +9,7 @@ import {
   isSecretary,
   secretaryCan,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { parseBody } from "@/lib/validations/helpers";
 import { createIntakeInviteSchema } from "@/lib/validations/intake-invite";
 import { sendSMS } from "@/lib/sms";
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
     );
     if (!rl.allowed) return rateLimitResponse(rl);
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     // שליחת קישור תשאול = פעולה מנהלתית (כמו שליחת קישור זימון): מזכירה מורשית
     // אם יש לה canSendReminders. *צפייה בתשובות* נשארת חסומה ב-endpoint נפרד.
     if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canSendReminders")) {

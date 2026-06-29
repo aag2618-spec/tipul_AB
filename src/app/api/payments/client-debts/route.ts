@@ -3,6 +3,7 @@ import { getAllClientsDebtSummary } from "@/lib/payment-service";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { loadScopeUser } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export async function GET() {
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const clientDebts = await getAllClientsDebtSummary(userId, scopeUser);
     return NextResponse.json(clientDebts);
   } catch (error) {

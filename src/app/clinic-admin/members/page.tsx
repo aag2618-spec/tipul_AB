@@ -55,6 +55,7 @@ interface Member {
   role: string;
   clinicRole: ClinicRole | null;
   secretaryPermissions: SecretaryPermissions | null;
+  secretaryIsTherapist?: boolean;
   isBlocked: boolean;
   createdAt: string;
   billingPaidByClinic?: boolean;
@@ -101,6 +102,7 @@ export default function ClinicMembersPage() {
   const [permsDialogOpen, setPermsDialogOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [editPerms, setEditPerms] = useState<SecretaryPermissions>(DEFAULT_SECRETARY_PERMISSIONS);
+  const [editIsTherapist, setEditIsTherapist] = useState(false);
   const [savingPerms, setSavingPerms] = useState(false);
 
   // הסרה
@@ -136,6 +138,7 @@ export default function ClinicMembersPage() {
   function openPermsDialog(member: Member) {
     setEditingMember(member);
     setEditPerms(member.secretaryPermissions || DEFAULT_SECRETARY_PERMISSIONS);
+    setEditIsTherapist(Boolean(member.secretaryIsTherapist));
     setPermsDialogOpen(true);
   }
 
@@ -146,7 +149,10 @@ export default function ClinicMembersPage() {
       const res = await fetch(`/api/clinic-admin/members/${editingMember.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ secretaryPermissions: editPerms }),
+        body: JSON.stringify({
+          secretaryPermissions: editPerms,
+          secretaryIsTherapist: editIsTherapist,
+        }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -277,6 +283,12 @@ export default function ClinicMembersPage() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-medium truncate">{m.name || "—"}</span>
                             <MemberRoleBadge role={m.clinicRole} />
+                            {m.clinicRole === "SECRETARY" && m.secretaryIsTherapist && (
+                              <Badge className="bg-blue-500/20 text-blue-400 text-[10px]">
+                                <Stethoscope className="ml-1 h-3 w-3" />
+                                גם מטפל/ת
+                              </Badge>
+                            )}
                             {m.billingPaidByClinic &&
                               m.clinicRole === "THERAPIST" && (
                                 <span
@@ -358,6 +370,26 @@ export default function ClinicMembersPage() {
               </span>
             </DialogDescription>
           </DialogHeader>
+
+          {/* מזכיר/ה גם מטפל/ת — הגדרה מבנית (לא הרשאת תוכן), מודגשת בנפרד */}
+          <label className="flex items-start gap-3 p-3 rounded-md cursor-pointer border border-blue-500/40 bg-blue-500/5 hover:bg-blue-500/10 transition-colors">
+            <input
+              type="checkbox"
+              checked={editIsTherapist}
+              onChange={(e) => setEditIsTherapist(e.target.checked)}
+              className="mt-1"
+            />
+            <div className="flex-1">
+              <div className="font-medium text-sm flex items-center gap-1.5">
+                <Stethoscope className="h-3.5 w-3.5 text-blue-400" />
+                מזכיר/ה גם מטפל/ת
+              </div>
+              <div className="text-xs text-muted-foreground">
+                בנוסף למסך המזכירות, מקבל/ת דשבורד טיפולי משלו/ה (מטופלים אישיים +
+                גישה קלינית מלאה אליהם בלבד), עם כפתור מעבר בין שני המסכים.
+              </div>
+            </div>
+          </label>
 
           <div className="space-y-3 py-2">
             {SECRETARY_PERMS.map((p) => (

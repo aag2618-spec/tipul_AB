@@ -39,6 +39,8 @@ export async function PATCH(
         clinicRole: true,
         role: true,
         email: true,
+        secretaryIsTherapist: true,
+        _count: { select: { clients: true } },
       },
     });
     if (!member) {
@@ -57,7 +59,12 @@ export async function PATCH(
       );
     }
 
-    const updates: { clinicRole?: "THERAPIST" | "SECRETARY"; secretaryPermissions?: unknown; role?: string } = {};
+    const updates: {
+      clinicRole?: "THERAPIST" | "SECRETARY";
+      secretaryPermissions?: unknown;
+      role?: string;
+      secretaryIsTherapist?: boolean;
+    } = {};
 
     if (body.clinicRole !== undefined) {
       updates.clinicRole = body.clinicRole;
@@ -83,6 +90,35 @@ export async function PATCH(
       // המעבר ל-THERAPIST — מאפסים secretaryPermissions.
       // ל-Json? נדרש Prisma.DbNull (null/undefined ב-data לא מנקים את השדה).
       updates.secretaryPermissions = Prisma.DbNull;
+    }
+
+    // עדכון secretaryIsTherapist (מזכיר/ה שהוא/היא גם מטפל/ת) — רלוונטי רק
+    // למזכיר/ה. מטפל/ת מן המניין כבר מטפל/ת מלא/ה, אז הדגל חסר משמעות עבורו/ה.
+    if (body.secretaryIsTherapist !== undefined) {
+      if (finalRole !== "SECRETARY") {
+        return NextResponse.json(
+          { message: "ניתן להגדיר 'מזכירה גם מטפלת' רק למזכיר/ה" },
+          { status: 400 }
+        );
+      }
+      // כיבוי הדגל בזמן שיש מטופלים משויכים → המטופלים יישארו על שם מזכירה
+      // רגילה (מצב לא חוקי — מזכירה לא יכולה להחזיק מטופלים). חוסמים כמו ב-DELETE.
+      if (
+        body.secretaryIsTherapist === false &&
+        member.secretaryIsTherapist &&
+        member._count.clients > 0
+      ) {
+        return NextResponse.json(
+          {
+            message: `לא ניתן לבטל 'מזכירה גם מטפלת' — יש ${member._count.clients} מטופלים משויכים. תחילה העבר/י אותם למטפל/ת אחר/ת.`,
+          },
+          { status: 400 }
+        );
+      }
+      updates.secretaryIsTherapist = body.secretaryIsTherapist;
+    } else if (updates.clinicRole === "THERAPIST") {
+      // מעבר מ-SECRETARY ל-THERAPIST — הדגל מאבד משמעות, מאפסים.
+      updates.secretaryIsTherapist = false;
     }
 
     if (Object.keys(updates).length === 0) {

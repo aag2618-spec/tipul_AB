@@ -10,6 +10,7 @@ import {
   secretaryCan,
   type ScopeUser,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { parseBody } from "@/lib/validations/helpers";
 import { signConsentFormSchema } from "@/lib/validations/consent-form";
 
@@ -43,7 +44,7 @@ export async function GET(
 
     const { id } = await params;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewConsentForms")) {
       return NextResponse.json(
         { message: "אין הרשאה לצפייה בטפסי הסכמה" },
@@ -85,7 +86,7 @@ export async function PATCH(
     if ("error" in parsed) return parsed.error;
     const { signatureData } = parsed.data;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     // POST/יצירה דורש canViewConsentForms — חתימה/עדכון אדמיניסטרטיבי גם.
     if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewConsentForms")) {
       return NextResponse.json(
@@ -143,7 +144,7 @@ export async function DELETE(
 
     const { id } = await params;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewConsentForms")) {
       return NextResponse.json(
         { message: "אין הרשאה למחיקת טפסי הסכמה" },

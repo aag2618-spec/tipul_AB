@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { loadScopeUser, buildClientWhere } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { parseBody } from "@/lib/validations/helpers";
 import { deleteCommunicationLogsSchema } from "@/lib/validations/communications";
 
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
     // משתמש שעבר קליניקה יכול היה למחוק logs ישנים שיצר ועדיין שייכים ל-org
     // הקודם. עכשיו: או creator (userId) או client בתוך scope הנוכחי.
     // אותו pattern כמו read/dismiss/mark-read routes שתוקנו בסבב 16c.
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const clientWhere = buildClientWhere(scopeUser);
 
     const result = await prisma.communicationLog.deleteMany({

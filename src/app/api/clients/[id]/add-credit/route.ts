@@ -3,7 +3,8 @@ import prisma from "@/lib/prisma";
 import { createPaymentForSession } from "@/lib/payment-service";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
-import { buildClientWhere, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
+import { buildClientWhere, isSecretary, secretaryCan } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { parseBody } from "@/lib/validations/helpers";
 import { addCreditSchema } from "@/lib/validations/client";
 
@@ -26,7 +27,7 @@ export async function POST(
 
     // טען scope לפי המשתמש כדי לוודא שה-Payment החדש משויך ל-organizationId
     // הנכון (אחרת ה-Payment שנוצר בלי organizationId לא ייראה לבעלי הקליניקה).
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
 
     // Phase 3 L1: מזכירה ללא canViewPayments לא רשאית ליצור רשומת Payment
     // (גם לא ADVANCE/קרדיט). analog ל-H1 שסגרנו ב-/api/payments/pay-client-debts:

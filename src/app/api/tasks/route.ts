@@ -10,6 +10,7 @@ import {
   buildPaymentWhere,
   buildDocumentWhere,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -162,7 +163,7 @@ export async function POST(request: NextRequest) {
       if (typeof relatedEntityId !== "string" || relatedEntityId.length === 0) {
         return NextResponse.json({ message: "מזהה ישות מקושרת חסר" }, { status: 400 });
       }
-      const scopeUser = await loadScopeUser(userId);
+      const scopeUser = await loadScopeUserWithMode(userId);
       let exists = false;
       if (relatedEntity === "CLIENT") {
         const where = buildClientWhere(scopeUser);

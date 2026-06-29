@@ -5,7 +5,8 @@ import { format } from "date-fns";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
-import { buildClientWhere, isSecretary, loadScopeUser } from "@/lib/scope";
+import { buildClientWhere, isSecretary } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { logDataAccess } from "@/lib/audit-logger";
 import {
   checkRateLimit,
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId, originalUserId, isImpersonating } = auth;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
 
     // ייצוא ארגוני של כל המטופלים = sessionNote, transcription, answers,
     // אבחנות וכו'. מזכירה חסומה לחלוטין.

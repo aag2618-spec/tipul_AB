@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
 import { loadScopeUser, buildClientWhere } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { parseBody } from "@/lib/validations/helpers";
 import { updateRecurringPatternSchema } from "@/lib/validations/recurring-pattern";
 
@@ -45,7 +46,7 @@ export async function PUT(
       finalClientId &&
       finalClientId !== existing.clientId
     ) {
-      const scopeUser = await loadScopeUser(userId);
+      const scopeUser = await loadScopeUserWithMode(userId);
       const exists = await prisma.client.findFirst({
         where: { AND: [{ id: finalClientId }, buildClientWhere(scopeUser)] },
         select: { id: true },

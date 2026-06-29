@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
 import { loadScopeUser, buildClientWhere } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,7 @@ export async function POST(
     // משתמש שעבר קליניקה (org change) יכול היה לסמן INCOMING logs ישנים
     // שאינם בscope הנוכחי. עכשיו: OR בין creator ל-client בscope.
     // אותו pattern כמו communications/logs/[id]/{read,dismiss}/route.ts.
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const clientWhere = buildClientWhere(scopeUser);
 
     // Find the communication log and verify ownership

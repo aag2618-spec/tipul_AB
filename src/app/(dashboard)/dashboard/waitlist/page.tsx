@@ -1,7 +1,8 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
-import { isSecretary, loadScopeUser } from "@/lib/scope";
+import { isSecretary } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { getViewMode } from "@/lib/view-scope";
 import { WaitlistView } from "@/components/waitlist/waitlist-view";
 
@@ -15,7 +16,7 @@ export default async function WaitlistPage() {
   // הצופה בהיקף האישי. כאן זה מסתיר את בורר "מטפל מועדף" בדיאלוג ההוספה ואת שורת
   // המטפל בכרטיסים, כך שב"שלי" הרשימה מתנהגת כמו אצל מטפל/ת יחיד/ה. מזכירה אף פעם
   // אינה ב"שלי" → ממשיכה לראות את הבורר ואת כל הקליניקה.
-  const scopeUser = await loadScopeUser(session.user.id);
+  const scopeUser = await loadScopeUserWithMode(session.user.id);
   const isOwnPersonalView =
     !isSecretary(scopeUser) && (await getViewMode()) === "personal";
 

@@ -3,6 +3,7 @@ import { processMultiSessionPayment } from "@/lib/payment-service";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { parseBody } from "@/lib/validations/helpers";
 import { payClientDebtsSchema } from "@/lib/validations/payment";
 
@@ -13,7 +14,7 @@ export async function POST(req: NextRequest) {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
     const { userId } = auth;
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
 
     // Phase 3 (H1): סגירת backdoor — מזכירה ללא canViewPayments יכלה לסמן
     // payments PAID דרך ה-route הזה גם כש-PUT /api/sessions/[id] חוסם

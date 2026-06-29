@@ -5,6 +5,7 @@ import { requireAuth } from "@/lib/api-auth";
 import { parseBody } from "@/lib/validations/helpers";
 import { createTaskCommentSchema } from "@/lib/validations/task";
 import { loadScopeUser, canAccessTaskThread } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import {
   checkRateLimit,
   rateLimitResponse,
@@ -64,7 +65,7 @@ export async function GET(
       return NextResponse.json({ message: "המטלה לא נמצאה" }, { status: 404 });
     }
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     if (!canAccessTaskThread(scopeUser, task)) {
       return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
     }
@@ -119,7 +120,7 @@ export async function POST(
       return NextResponse.json({ message: "המטלה לא נמצאה" }, { status: 404 });
     }
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     if (!canAccessTaskThread(scopeUser, task)) {
       return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
     }

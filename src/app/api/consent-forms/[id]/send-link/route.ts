@@ -10,6 +10,7 @@ import {
   secretaryCan,
   type ScopeUser,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { parseBody } from "@/lib/validations/helpers";
 import { sendConsentLinkSchema } from "@/lib/validations/consent-form";
 import { sendSMS } from "@/lib/sms";
@@ -39,7 +40,7 @@ export async function POST(
 
     const { id } = await params;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewConsentForms")) {
       return NextResponse.json(
         { message: "אין הרשאה לשליחת טפסי הסכמה" },

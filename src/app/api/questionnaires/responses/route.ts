@@ -8,6 +8,7 @@ import {
   buildClientWhere,
   canSecretaryAccessModel,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { parseBody } from "@/lib/validations/helpers";
 import { createQuestionnaireResponseSchema } from "@/lib/validations/questionnaire-response";
 
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     // תוכן קליני (שאלונים) חסום למזכירה — בדיקה קשיחה לפי scope.ts
     if (!canSecretaryAccessModel(scopeUser, "QuestionnaireResponse")) {
       return NextResponse.json(
@@ -94,7 +95,7 @@ export async function GET(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     // תוכן קליני חסום למזכירה — תשובות גולמיות של שאלון אסורות לצפייה
     if (!canSecretaryAccessModel(scopeUser, "QuestionnaireResponse")) {
       return NextResponse.json(

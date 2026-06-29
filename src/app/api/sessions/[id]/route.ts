@@ -10,7 +10,8 @@ import { logger } from "@/lib/logger";
 import { serializePrisma } from "@/lib/serialize";
 import { syncSessionUpdateToGoogleCalendar, syncSessionDeletionToGoogleCalendar } from "@/lib/google-calendar-sync";
 import { logDataAccess } from "@/lib/audit-logger";
-import { buildSessionWhere, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
+import { buildSessionWhere, isSecretary, secretaryCan } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { calculatePaidAmount } from "@/lib/payment-utils";
 import { copayApplies } from "@/lib/commitments";
 import { applyCommitmentUsageOnStatusChange } from "@/lib/commitment-usage";
@@ -43,7 +44,7 @@ export async function GET(
 
     const { id } = await params;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const sessionScopeWhere = buildSessionWhere(scopeUser);
     // Phase 3: gate ל-payment ב-GET — מזכירה ללא canViewPayments לא צריכה
     // לקבל את ה-payment בתשובה. תאם ל-GET /api/clients/[id] ול-Server Component
@@ -154,7 +155,7 @@ export async function PUT(
     const body = parsed.data as Record<string, unknown>;
     const { startTime, endTime, type, price, location, notes, topic, status, createPayment, markAsPaid, cancellationReason, allowOverlap, roomId } = parsed.data;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const sessionScopeWhere = buildSessionWhere(scopeUser);
 
     // Privacy: a secretary may update only administrative fields.
@@ -699,7 +700,7 @@ export async function PATCH(
     if ("error" in parsed) return parsed.error;
     const { skipSummary, topic } = parsed.data;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
 
     // Privacy: topic הוא תוכן קליני (נושא הפגישה). מזכירה חסומה — parity עם
     // ALLOWED_FOR_SECRETARY ב-PUT, ששם notes/topic נחסמים. skipSummary נשאר
@@ -760,7 +761,7 @@ export async function DELETE(
 
     const { id } = await params;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const sessionScopeWhere = buildSessionWhere(scopeUser);
 
     const existingSession = await prisma.therapySession.findFirst({

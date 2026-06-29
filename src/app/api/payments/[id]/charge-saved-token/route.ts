@@ -21,6 +21,7 @@ import {
   loadScopeUser,
   secretaryCan,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
 import {
   checkRateLimit,
@@ -94,7 +95,7 @@ export async function POST(
   // מחייבת canIssueReceipts אצל מזכירה.
   let scopeUser;
   try {
-    scopeUser = await loadScopeUser(userId);
+    scopeUser = await loadScopeUserWithMode(userId);
   } catch (scopeErr) {
     logger.error("[user/charge-saved-token] scope load failed", {
       userId,

@@ -12,9 +12,9 @@ import {
   getClientSafeSelectForSecretary,
   isClinicOwner,
   isSecretary,
-  loadScopeUser,
   secretaryCan,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +74,7 @@ export async function GET(
 
     const { id } = await params;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const scopeWhere = buildClientWhere(scopeUser);
     const fields = request.nextUrl.searchParams.get("fields");
 
@@ -240,7 +240,7 @@ export async function PUT(
 
     const { firstName, lastName, phone, email, birthDate, address, notes, status, initialDiagnosis, intakeNotes, defaultSessionPrice, isQuickClient, consentToAI, healthFund, therapistId } = parsed.data;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const scopeWhere = buildClientWhere(scopeUser);
 
     if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canCreateClient")) {
@@ -477,7 +477,7 @@ export async function DELETE(
       );
     }
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const scopeWhere = buildClientWhere(scopeUser);
 
     if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canCreateClient")) {

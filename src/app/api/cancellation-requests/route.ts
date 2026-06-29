@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
 import { buildSessionWhere, loadScopeUser } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import type { Prisma } from "@prisma/client";
 
 // GET /api/cancellation-requests
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const countOnly = searchParams.get("countOnly") === "true";
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const sessionWhere = buildSessionWhere(scopeUser);
 
     // Build where clause — בקשות ביטול נגישות אם הפגישה הקשורה נגישה למשתמש

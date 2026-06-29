@@ -12,6 +12,7 @@ import { PersonalTasksWidget } from "@/components/tasks/personal-tasks-widget";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
 import { TodayPrepCard } from "@/components/dashboard/today-prep-card";
 import { SecretaryHome } from "@/components/dashboard/secretary-home";
+import { SecretaryModeSwitch } from "@/components/secretary-mode-switch";
 import { SubBoxLink } from "@/components/dashboard-stat-card";
 import { calculateDebtFromPayments, calculatePaidAmount } from "@/lib/payment-utils";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
@@ -22,10 +23,12 @@ import {
   buildSessionWhere,
   buildPaymentWhere,
   isSecretary,
+  isSecretaryTherapist,
   isNonTherapistManager,
   type ScopeUser,
 } from "@/lib/scope";
 import { shouldScopePersonal } from "@/lib/view-scope";
+import { getSecretaryMode, applySecretaryMode } from "@/lib/secretary-mode";
 
 // מונע cache leak בין מטפלים — דף מכיל PHI scoped למשתמש
 export const dynamic = "force-dynamic";
@@ -248,12 +251,26 @@ export default async function DashboardPage() {
     return <div>טוען...</div>;
   }
 
-  const scopeUser = await loadScopeUser(session.user.id);
+  const rawScopeUser = await loadScopeUser(session.user.id);
+
+  // מזכיר/ה שהוא/היא גם מטפל/ת — מחילים את מצב המעבר (cookie). במצב "טיפול"
+  // התפקיד האפקטיבי הופך ל-THERAPIST (מטופלים שלה + גישה קלינית מלאה), ואז
+  // נופלים לדשבורד המטפל הרגיל. במצב "מזכירות" (ברירת מחדל) — נשארת SECRETARY.
+  const canSwitchModes = isSecretaryTherapist(rawScopeUser);
+  const secretaryMode = canSwitchModes ? await getSecretaryMode() : "secretary";
+  const scopeUser = applySecretaryMode(rawScopeUser, secretaryMode);
 
   // מזכיר/ה — מסך front-desk מותאם במקום דשבורד המטפל. שאר התפקידים
-  // (מטפל עצמאי / בעלים / מטפל בקליניקה) — ללא שינוי.
+  // (מטפל עצמאי / בעלים / מטפל בקליניקה) — ללא שינוי. מזכירה-מטפלת במצב טיפול
+  // כבר אינה isSecretary (clinicRole הוחלף ל-THERAPIST) ולכן נופלת לדשבורד המטפל.
   if (isSecretary(scopeUser)) {
-    return <SecretaryHome scopeUser={scopeUser} userName={session.user.name} />;
+    return (
+      <SecretaryHome
+        scopeUser={scopeUser}
+        userName={session.user.name}
+        canSwitchToTherapist={canSwitchModes}
+      />
+    );
   }
 
   // מנהל/ת לא-מטפל/ת (בעלים שאינו מטפל) → נחיתה ישירה בניהול הקליניקה.
@@ -351,12 +368,21 @@ export default async function DashboardPage() {
             סקירה כללית של הפעילות שלך
           </p>
         </div>
-        <Button asChild>
-          <Link href="/dashboard/calendar?new=true">
-            <Plus className="h-4 w-4 ml-2" />
-            פגישה חדשה
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          {canSwitchModes && (
+            <SecretaryModeSwitch
+              to="secretary"
+              href="/dashboard"
+              className="border border-purple-500/40 bg-purple-500/5 text-purple-600 dark:text-purple-300 hover:bg-purple-500/10"
+            />
+          )}
+          <Button asChild>
+            <Link href="/dashboard/calendar?new=true">
+              <Plus className="h-4 w-4 ml-2" />
+              פגישה חדשה
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Stats Grid */}

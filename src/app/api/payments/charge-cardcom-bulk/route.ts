@@ -32,6 +32,7 @@ import {
   loadScopeUser,
   secretaryCan,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
 import {
   checkRateLimit,
@@ -106,7 +107,7 @@ export async function POST(request: NextRequest) {
   // ולידציה בסיסית כבר נעשתה ע"י zod (strict). הבדיקות המקוריות הוסרו.
 
   // Scope-based ownership + הרשאת קבלות למזכירה (סליקה מנפיקה קבלה/חשבונית).
-  const scopeUser = await loadScopeUser(userId);
+  const scopeUser = await loadScopeUserWithMode(userId);
   if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canIssueReceipts")) {
     return NextResponse.json(
       { message: "אין הרשאה לסליקת אשראי / הוצאת קבלות" },

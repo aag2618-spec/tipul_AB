@@ -3,7 +3,8 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
-import { buildSessionWhere, isSecretary, loadScopeUser } from "@/lib/scope";
+import { buildSessionWhere, isSecretary } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export async function DELETE(
 
     const { id } = await params;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
 
     // SessionNote is clinical content — secretaries are blocked.
     if (isSecretary(scopeUser)) {

@@ -3,7 +3,8 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { TasksView } from "@/components/tasks/tasks-view";
-import { loadScopeUser, buildSessionWhere, isSecretary, isClinicOwner } from "@/lib/scope";
+import { buildSessionWhere, isSecretary, isClinicOwner } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { shouldScopePersonal } from "@/lib/view-scope";
 
 // מונע cache leak בין מטפלים — דף מכיל PHI scoped למשתמש
@@ -37,7 +38,7 @@ export default async function TasksPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return null;
 
-  const scopeUser = await loadScopeUser(session.user.id);
+  const scopeUser = await loadScopeUserWithMode(session.user.id);
 
   // B6: מזכירה בקליניקה — הדף הזה הוא "פגישות ממתינות לסיכום" שזה זרימה
   // קלינית של המטפל. buildSessionWhere למזכירה מחזיר את כל הארגון (כי היא

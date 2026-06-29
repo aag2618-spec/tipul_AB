@@ -9,6 +9,7 @@ import {
   buildClientWhere,
   canSecretaryAccessModel,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { parseBody } from "@/lib/validations/helpers";
 import { updateQuestionnaireResponseSchema } from "@/lib/validations/questionnaire-response";
 
@@ -24,7 +25,7 @@ export async function GET(
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     if (!canSecretaryAccessModel(scopeUser, "QuestionnaireResponse")) {
       return NextResponse.json(
         { message: "אין הרשאה לתוכן קליני" },
@@ -76,7 +77,7 @@ export async function PATCH(
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     if (!canSecretaryAccessModel(scopeUser, "QuestionnaireResponse")) {
       return NextResponse.json(
         { message: "אין הרשאה לתוכן קליני" },
@@ -159,7 +160,7 @@ export async function DELETE(
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     if (!canSecretaryAccessModel(scopeUser, "QuestionnaireResponse")) {
       return NextResponse.json(
         { message: "אין הרשאה לתוכן קליני" },

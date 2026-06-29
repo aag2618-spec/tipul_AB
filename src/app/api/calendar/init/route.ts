@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 import { parseIsraelTime } from "@/lib/date-utils";
 import { requireAuth } from "@/lib/api-auth";
 import { buildClientWhere, buildSessionWhere, isSecretary, loadScopeUser } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { calculatePaidAmount } from "@/lib/payment-utils";
 import { serializePrisma } from "@/lib/serialize";
 import type { Prisma } from "@prisma/client";
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const scopeWhere = buildSessionWhere(scopeUser);
     const clientScopeWhere = buildClientWhere(scopeUser);
 

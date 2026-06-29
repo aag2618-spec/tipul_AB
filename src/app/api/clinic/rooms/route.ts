@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { loadScopeUser } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { requireClinicOwner } from "@/lib/clinic/require-clinic-owner";
 import { parseBody } from "@/lib/validations/helpers";
 import { createRoomSchema } from "@/lib/validations/clinic-room";
@@ -24,7 +25,7 @@ export async function GET() {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
 
-    const scopeUser = await loadScopeUser(auth.userId);
+    const scopeUser = await loadScopeUserWithMode(auth.userId);
     // מטפל/ת עצמאי/ת — אין קליניקה, ולכן אין חדרים מנוהלים.
     if (!scopeUser.organizationId) return NextResponse.json([]);
 

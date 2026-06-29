@@ -9,10 +9,10 @@ import { createCommitmentSchema } from "@/lib/validations/client";
 import {
   buildClientWhere,
   isSecretary,
-  loadScopeUser,
   resolveTherapistIdForClientChild,
   secretaryCan,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +27,7 @@ export async function GET(
   const { id: clientId } = await context.params;
 
   try {
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const client = await prisma.client.findFirst({
       where: { AND: [{ id: clientId }, buildClientWhere(scopeUser)] },
       select: { id: true },
@@ -62,7 +62,7 @@ export async function POST(
   const { id: clientId } = await context.params;
 
   try {
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canCreateClient")) {
       return NextResponse.json(
         { message: "אין הרשאה ליצירת התחייבות" },

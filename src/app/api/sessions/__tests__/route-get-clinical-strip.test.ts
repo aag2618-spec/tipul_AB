@@ -35,6 +35,10 @@ vi.mock("@/lib/scope", () => ({
   secretaryCan: () => true,
   resolveTherapistIdForSession: vi.fn(),
 }));
+// הראוט קורא loadScopeUserWithMode (secretary-mode) — מאציל ל-mock של loadScopeUser.
+vi.mock("@/lib/secretary-mode", () => ({
+  loadScopeUserWithMode: (...a: unknown[]) => loadScopeUser(...a),
+}));
 vi.mock("@/lib/payment-utils", () => ({ calculatePaidAmount: () => 0 }));
 vi.mock("@/lib/date-utils", () => ({ parseIsraelTime: (s: string) => new Date(s) }));
 vi.mock("@/lib/google-calendar-sync", () => ({ syncSessionToGoogleCalendar: vi.fn() }));

@@ -3,7 +3,8 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
-import { buildSessionWhere, isSecretary, loadScopeUser } from "@/lib/scope";
+import { buildSessionWhere, isSecretary } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { sanitizeUserHtml } from "@/lib/sanitize-html";
 import { parseBody } from "@/lib/validations/helpers";
 import { sessionNoteSchema, sessionNoteUpdateSchema } from "@/lib/validations/session";
@@ -26,7 +27,7 @@ export async function POST(
     if ("error" in parsed) return parsed.error;
     const { content, isPrivate } = parsed.data;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
 
     // SessionNote is clinical content — secretaries are blocked.
     if (isSecretary(scopeUser)) {
@@ -102,7 +103,7 @@ export async function PUT(
     if ("error" in parsed) return parsed.error;
     const { content, isPrivate } = parsed.data;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
 
     if (isSecretary(scopeUser)) {
       return NextResponse.json(

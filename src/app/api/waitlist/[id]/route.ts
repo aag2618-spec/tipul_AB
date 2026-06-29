@@ -9,6 +9,7 @@ import {
   loadScopeUser,
   secretaryCan,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { waitlistScope } from "@/lib/waitlist-scope";
 import { serializePrisma } from "@/lib/serialize";
 
@@ -29,7 +30,7 @@ const patchSchema = z.object({
 
 /** מוודא שהרשומה קיימת ובתוך ה-scope של המשתמש (בידוד tenant). */
 async function findInScope(id: string, userId: string) {
-  const scopeUser = await loadScopeUser(userId);
+  const scopeUser = await loadScopeUserWithMode(userId);
   const entry = await prisma.waitlistEntry.findFirst({
     where: { AND: [{ id }, waitlistScope(scopeUser, userId)] },
     select: { id: true },

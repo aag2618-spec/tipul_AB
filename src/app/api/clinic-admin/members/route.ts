@@ -21,6 +21,7 @@ export async function GET() {
         role: true,
         clinicRole: true,
         secretaryPermissions: true,
+        secretaryIsTherapist: true,
         isBlocked: true,
         createdAt: true,
         // MyTipul-B: מציג ב-UI אם הקליניקה משלמת.

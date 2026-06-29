@@ -15,7 +15,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { loadScopeUser, buildClientWhere } from "@/lib/scope";
+import { buildClientWhere } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { shouldScopePersonal } from "@/lib/view-scope";
 import { AddCommitmentDialog } from "@/components/clients/add-commitment-dialog";
 
@@ -65,7 +66,7 @@ export default async function CommitmentDetailPage({
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return null;
 
-  const scopeUser = await loadScopeUser(session.user.id);
+  const scopeUser = await loadScopeUserWithMode(session.user.id);
   const personalOnly = await shouldScopePersonal(scopeUser);
   const clientWhere = buildClientWhere(scopeUser, { personalOnly });
 

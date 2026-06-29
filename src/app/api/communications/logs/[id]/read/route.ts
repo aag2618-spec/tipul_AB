@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
 import { loadScopeUser, buildClientWhere } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,7 @@ export async function POST(
     // בלבד — אם משתמש יצר log ואז עבר לקליניקה אחרת, הוא עדיין יכול לסמן
     // logs ישנים שאינם בscope שלו. עכשיו: OR בין creator (userId) ל-client
     // בscope הנוכחי — אותו pattern כמו `uploads/[...path]/route.ts:103-110`.
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const clientWhere = buildClientWhere(scopeUser);
 
     await prisma.communicationLog.updateMany({

@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
-import { loadScopeUser } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { dismissOverlapSchema } from "@/lib/validations/session";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "נתונים לא תקינים" }, { status: 400 });
     }
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
 
     // שולפים רק שדות אדמיניסטרטיביים (id/therapistId/organizationId) — אין PHI.
     const sessions = await prisma.therapySession.findMany({

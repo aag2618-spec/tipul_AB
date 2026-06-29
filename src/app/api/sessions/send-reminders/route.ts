@@ -10,11 +10,11 @@ import { logger } from "@/lib/logger";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
 import { requireAuth } from "@/lib/api-auth";
 import {
-  loadScopeUser,
   buildSessionWhere,
   isSecretary,
   secretaryCan,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { checkRateLimit, EMAIL_SEND_USER_RATE_LIMIT } from "@/lib/rate-limit";
 import { parseBody } from "@/lib/validations/helpers";
 import { sendRemindersSchema } from "@/lib/validations/session";
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const scopeUser = await loadScopeUser(userId);
+  const scopeUser = await loadScopeUserWithMode(userId);
   if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canSendReminders")) {
     return NextResponse.json(
       { message: "אין הרשאה לשליחת תזכורות" },

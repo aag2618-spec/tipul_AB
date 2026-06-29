@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
 import { buildPaymentWhere, loadScopeUser } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { shouldScopePersonal } from "@/lib/view-scope";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
 
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const personalOnly = await shouldScopePersonal(scopeUser);
     const paymentWhere = buildPaymentWhere(scopeUser, { personalOnly });
 

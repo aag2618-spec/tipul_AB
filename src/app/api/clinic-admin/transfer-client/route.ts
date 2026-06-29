@@ -114,6 +114,7 @@ export async function POST(request: NextRequest) {
         name: true,
         organizationId: true,
         clinicRole: true,
+        secretaryIsTherapist: true,
         isBlocked: true,
       },
     });
@@ -132,7 +133,12 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    if (toTherapist.clinicRole !== "THERAPIST" && toTherapist.clinicRole !== "OWNER") {
+    // יעד תקף: מטפל/ת, בעלים, או מזכיר/ה-מטפל/ת. מזכירה רגילה — חסומה.
+    const toIsTherapistRole =
+      toTherapist.clinicRole === "THERAPIST" ||
+      toTherapist.clinicRole === "OWNER" ||
+      (toTherapist.clinicRole === "SECRETARY" && toTherapist.secretaryIsTherapist);
+    if (!toIsTherapistRole) {
       return NextResponse.json(
         { message: "ניתן להעביר רק למטפלים או לבעלים (לא למזכירות)" },
         { status: 400 }

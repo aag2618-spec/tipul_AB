@@ -5,7 +5,8 @@ import { format } from "date-fns";
 import { calculateDebtFromPayments } from "@/lib/payment-utils";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
-import { buildClientWhere, isSecretary, loadScopeUser } from "@/lib/scope";
+import { buildClientWhere, isSecretary } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { logDataAccess } from "@/lib/audit-logger";
 import {
   checkRateLimit,
@@ -26,7 +27,7 @@ export async function GET(
 
     const { id } = await params;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
 
     // ייצוא תיק מטופל = הקלטות, תמלולים, סיכומים, אבחנות, ניתוחי AI — כולם
     // קליניים. מזכירה חסומה לחלוטין מייצוא תיק קליני.

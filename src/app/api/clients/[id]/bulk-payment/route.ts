@@ -7,9 +7,9 @@ import {
   buildClientWhere,
   buildSessionWhere,
   isSecretary,
-  loadScopeUser,
   secretaryCan,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { parseBody } from "@/lib/validations/helpers";
 import { bulkPaymentSchema } from "@/lib/validations/misc";
 
@@ -30,7 +30,7 @@ export async function POST(
     if ("error" in parsed) return parsed.error;
     const { amount, method } = parsed.data;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewPayments")) {
       return NextResponse.json(
         { message: "אין הרשאה לצפייה/יצירת תשלומים" },

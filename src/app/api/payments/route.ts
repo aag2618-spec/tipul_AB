@@ -14,6 +14,7 @@ import {
   loadScopeUser,
   secretaryCan,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
 import { shouldScopePersonal } from "@/lib/view-scope";
 
@@ -25,7 +26,7 @@ export async function GET() {
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     // היקף לפי המתג "שלי / כל הקליניקה" (cookie). קודם הקבלות הוחזרו תמיד לכל
     // הקליניקה, כך ש"שלי" לא סינן את הקבלות של מטפלים אחרים. לבעל/ת קליניקה
     // ב"שלי" → רק הקבלות שלו/ה; לשאר התפקידים shouldScopePersonal מחזיר false.
@@ -255,7 +256,7 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     // יצירת תשלום ע"י מזכירה דורשת canViewPayments — יצירה מחייבת צפייה.
     if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewPayments")) {
       return NextResponse.json(

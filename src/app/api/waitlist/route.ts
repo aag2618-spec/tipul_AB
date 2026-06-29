@@ -9,6 +9,7 @@ import {
   loadScopeUser,
   secretaryCan,
 } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { waitlistScope } from "@/lib/waitlist-scope";
 import { shouldScopePersonal } from "@/lib/view-scope";
 import { serializePrisma } from "@/lib/serialize";
@@ -37,7 +38,7 @@ export async function GET() {
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     // תצוגת "שלי / כל הקליניקה" — בדיוק כמו ביומן: בעלים-שהוא-מטפל ב"שלי" רואה רק
     // את הממתינים שלו. מסנן תצוגה בלבד (לא משפיע על מחיקה/עדכון/התאמה).
     const personalOnly = await shouldScopePersonal(scopeUser);
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
 
     // הרשאה: מזכירה צריכה canCreateClient (פעולה אדמיניסטרטיבית-זימון).
     if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canCreateClient")) {

@@ -36,6 +36,17 @@ export type ScopeUser = {
    * לא מנתב בעל/ת קליניקה מטפל/ת בטעות). ראה isNonTherapistManager.
    */
   ownerIsTherapist?: boolean | null;
+  /**
+   * האם המזכיר/ה הוא/היא גם מטפל/ת מלא/ה (User.secretaryIsTherapist).
+   * רלוונטי רק ל-clinicRole=SECRETARY. true → מקבל/ת בנוסף "מצב מטפל" (ראה
+   * secretary-mode.ts). אופציונלי — מאוכלס ע"י loadScopeUser. undefined/null =
+   * "לא מזכירה-מטפלת" (deny by default). ראה isSecretaryTherapist.
+   *
+   * ⚠️ שדה זה מתאר את התפקיד **הגולמי** (מה-DB). המעבר ל"מצב מטפל" בפועל
+   * נעשה ב-loadScopeUserWithMode (secretary-mode.ts) שמחליף את clinicRole
+   * ל-"THERAPIST" — ואז isSecretaryTherapist יחזיר false (היא מתנהגת כמטפלת).
+   */
+  secretaryIsTherapist?: boolean | null;
 };
 
 /**
@@ -118,6 +129,24 @@ export type ClinicalModel =
  */
 export function isSecretary(user: ScopeUser): boolean {
   return user.clinicRole === "SECRETARY" || user.role === "CLINIC_SECRETARY";
+}
+
+/**
+ * האם המשתמש/ת מזכיר/ה שהוא/היא **גם מטפל/ת מלא/ה** (User.secretaryIsTherapist)?
+ *
+ * מבוסס על התפקיד הגולמי: דורש שהמשתמש/ת עדיין מסווג/ת כ-SECRETARY (לפני
+ * flip ל-THERAPIST ע"י loadScopeUserWithMode) **וגם** secretaryIsTherapist=true.
+ *
+ * שימוש:
+ *   • זיהוי שיש להציג כפתור מעבר ל"מצב מטפל".
+ *   • התרת שיוך מטופל/פגישה אליה (resolveTherapistId) — בניגוד למזכירה רגילה.
+ *   • הכללתה ברשימות מטפלים (בורר/יומן/דוחות).
+ *
+ * ⚠️ לא לבלבל עם "האם כרגע במצב מטפל" — זה נקבע ע"י ה-cookie (secretary-mode.ts).
+ * כאן בודקים רק את **הכשירות** להיות מטפלת.
+ */
+export function isSecretaryTherapist(user: ScopeUser): boolean {
+  return isSecretary(user) && user.secretaryIsTherapist === true;
 }
 
 /**
@@ -588,6 +617,7 @@ export async function loadScopeUser(userId: string): Promise<ScopeUser> {
       organizationId: true,
       clinicRole: true,
       secretaryPermissions: true,
+      secretaryIsTherapist: true,
       // הדגל ownerIsTherapist יושב על הארגון. join קל; null למשתמש עצמאי
       // (ללא ארגון). משמש לזיהוי מנהל/ת לא-מטפל/ת — ראה isNonTherapistManager.
       organization: { select: { ownerIsTherapist: true } },
@@ -609,6 +639,7 @@ export async function loadScopeUser(userId: string): Promise<ScopeUser> {
     clinicRole: user.clinicRole,
     secretaryPermissions: (user.secretaryPermissions as SecretaryPermissions) ?? null,
     ownerIsTherapist: user.organization?.ownerIsTherapist ?? null,
+    secretaryIsTherapist: user.secretaryIsTherapist ?? null,
   };
 }
 
@@ -698,12 +729,13 @@ export async function resolveTherapistIdForClient(params: {
       organizationId: scopeUser.organizationId,
       isBlocked: false,
     },
-    select: { id: true, clinicRole: true },
+    select: { id: true, clinicRole: true, secretaryIsTherapist: true },
   });
   if (!target) {
     return { ok: false, status: 400, message: "המטפל הנבחר לא נמצא בקליניקה" };
   }
-  if (target.clinicRole === "SECRETARY") {
+  // מזכירה רגילה לא יכולה להיות מטפלת אחראית. מזכירה-מטפלת (secretaryIsTherapist) — כן.
+  if (target.clinicRole === "SECRETARY" && !target.secretaryIsTherapist) {
     return { ok: false, status: 400, message: "לא ניתן לשייך מטופל למזכירה" };
   }
   return { ok: true, therapistId: target.id };
@@ -778,12 +810,13 @@ export async function resolveTherapistIdForSession(params: {
         organizationId: scopeUser.organizationId,
         isBlocked: false,
       },
-      select: { id: true, clinicRole: true },
+      select: { id: true, clinicRole: true, secretaryIsTherapist: true },
     });
     if (!target) {
       return { ok: false, status: 400, message: "המטפל הנבחר לא נמצא בקליניקה" };
     }
-    if (target.clinicRole === "SECRETARY") {
+    // מזכירה רגילה לא יכולה להיות מטפלת אחראית. מזכירה-מטפלת — כן.
+    if (target.clinicRole === "SECRETARY" && !target.secretaryIsTherapist) {
       return { ok: false, status: 400, message: "לא ניתן לשייך פגישה למזכירה" };
     }
   }

@@ -5,6 +5,7 @@ import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
 import { loadScopeUser } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { parseBody } from "@/lib/validations/helpers";
 import { createQuestionnaireSchema } from "@/lib/validations/intake-questionnaire";
 
@@ -19,7 +20,7 @@ export async function GET() {
 
     // בקליניקה: כל שאלוני הארגון (כדי שמטפל/מזכירה יוכלו לבחור לשליחה).
     // מטפל עצמאי (organizationId=null): רק שלו — התנהגות קיימת.
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     const where: Prisma.IntakeQuestionnaireWhereInput = scopeUser.organizationId
       ? { isActive: true, user: { organizationId: scopeUser.organizationId } }
       : { userId, isActive: true };

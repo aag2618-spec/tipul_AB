@@ -9,7 +9,8 @@ import Link from "next/link";
 import { ExportAllClientsButton } from "@/components/clients/export-all-clients-button";
 import { ConsultationClientsSection } from "@/components/clients/consultation-clients-section";
 import { ClientsGridWithSearch } from "@/components/clients/clients-grid-with-search";
-import { loadScopeUser, buildClientWhere, isSecretary } from "@/lib/scope";
+import { buildClientWhere, isSecretary } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { shouldScopePersonal } from "@/lib/view-scope";
 import { calculatePaidAmount } from "@/lib/payment-utils";
 
@@ -105,7 +106,7 @@ export default async function ClientsPage({ searchParams }: PageProps) {
   const mappedStatus = rawStatus === "INACTIVE" ? "ARCHIVED" : rawStatus;
   const activeStatus = validStatuses.includes(mappedStatus as ClientStatus) ? mappedStatus as ClientStatus : undefined;
 
-  const scopeUser = await loadScopeUser(session.user.id);
+  const scopeUser = await loadScopeUserWithMode(session.user.id);
   // היקף לפי המתג הגלובלי "שלי / כל הקליניקה". לבעל/ת קליניקה ב"שלי" → רק
   // המטופלים שלו/ה; אחרת כל הקליניקה. לשאר התפקידים — ללא שינוי.
   const personalOnly = await shouldScopePersonal(scopeUser);

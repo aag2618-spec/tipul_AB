@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { buildClientWhere, buildSessionWhere, isSecretary, loadScopeUser } from "@/lib/scope";
+import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { logDataAccess, type AuditRecordType } from "@/lib/audit-logger";
 import { requireContentFilterEnabled } from "@/lib/content-unblock";
 import { parseBody } from "@/lib/validations/helpers";
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
-    const scopeUser = await loadScopeUser(userId);
+    const scopeUser = await loadScopeUserWithMode(userId);
     if (isSecretary(scopeUser)) {
       return NextResponse.json({ message: "אין הרשאה לתוכן קליני" }, { status: 403 });
     }

@@ -40,11 +40,15 @@ export const updateMemberSchema = z
   .object({
     clinicRole: z.enum(["THERAPIST", "SECRETARY"]).optional(),
     secretaryPermissions: secretaryPermissionsSchema.optional().nullable(),
+    // מזכיר/ה שהוא/היא גם מטפל/ת מלא/ה (User.secretaryIsTherapist).
+    secretaryIsTherapist: z.boolean().optional(),
   })
   .strict()
   .refine(
     (data) =>
-      data.clinicRole !== undefined || data.secretaryPermissions !== undefined,
+      data.clinicRole !== undefined ||
+      data.secretaryPermissions !== undefined ||
+      data.secretaryIsTherapist !== undefined,
     { message: "לא הועברו שינויים" }
   );
 export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;
