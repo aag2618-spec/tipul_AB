@@ -190,7 +190,7 @@ export function PaymentClientDetailView({
               selectedClient.unpaidSessions.map((session) => (
                 <Card
                   key={session.paymentId}
-                  className="cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02] h-full"
+                  className="cursor-pointer hover:shadow-md transition-all h-full"
                   onClick={() => {
                     setSelectedPaymentSession(session);
                     setIsPaymentDialogOpen(true);

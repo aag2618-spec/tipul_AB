@@ -71,7 +71,7 @@ function CommitmentCard({
   const endDate = formatDate(c.endDate);
 
   return (
-    <Card className="relative h-full border transition-colors hover:border-primary/40 hover:bg-primary/[0.03]">
+    <Card className="relative h-full border transition-colors hover:border-primary/50 hover:bg-accent/40">
       {/* כפתור הוספת התחייבות נוספת למטופל — מחוץ ל-Link כדי שלא יפעיל ניווט */}
       <div className="absolute top-2 left-2 z-10">
         <AddCommitmentDialog
