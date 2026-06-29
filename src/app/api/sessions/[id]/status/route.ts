@@ -7,7 +7,7 @@ import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
 import { syncSessionToGoogleCalendar, syncSessionDeletionToGoogleCalendar } from "@/lib/google-calendar-sync";
-import { buildSessionWhere, loadScopeUser } from "@/lib/scope";
+import { buildSessionWhere, isSecretary, loadScopeUser } from "@/lib/scope";
 import { parseBody } from "@/lib/validations/helpers";
 import { sessionStatusSchema } from "@/lib/validations/session";
 import { applyCommitmentUsageOnStatusChange } from "@/lib/commitment-usage";
@@ -369,6 +369,15 @@ export async function PATCH(
         clientId: therapySession.clientId || undefined,
         type: "NO_SHOW_NOTIFICATION",
       });
+    }
+
+    // Privacy (חוק זכויות החולה): topic/notes הם scalars קליניים
+    // (CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY.session) ש-update מחזיר אוטומטית.
+    // מסננים מהתגובה למזכירה — parity עם /api/sessions ו-/api/sessions/[id].
+    if (isSecretary(scopeUser)) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { topic, notes, ...rest } = updatedSession as unknown as Record<string, unknown>;
+      return NextResponse.json(rest);
     }
 
     return NextResponse.json(updatedSession);
