@@ -81,7 +81,14 @@ export async function POST(request: NextRequest) {
       if (r.count === 0) return false; // race: someone consumed the token first
       await tx.user.update({
         where: { id: resetRecord.userId },
-        data: { password: hashedPassword, passwordChangedAt: new Date() },
+        // H6 defense-in-depth (2026-06-29): bump sessionVersion בנוסף ל-passwordChangedAt.
+        // passwordChangedAt נשען על השוואת token.iat שמתחדש ב-updateAge (כל שעה) —
+        // sessionVersion נקבע פעם אחת ב-login ואינו מתחדש, ולכן אות ביטול חסין יותר.
+        data: {
+          password: hashedPassword,
+          passwordChangedAt: new Date(),
+          sessionVersion: { increment: 1 },
+        },
       });
       return true;
     });
