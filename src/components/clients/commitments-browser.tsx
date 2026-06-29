@@ -90,8 +90,11 @@ function CommitmentCard({
         />
       </div>
 
-      <Link href={`/dashboard/commitments/${c.id}`} className="block">
-        <CardContent className="p-4 space-y-3 cursor-pointer">
+      <Link
+        href={`/dashboard/commitments/${c.id}`}
+        className="block hover:scale-100 hover:bg-transparent hover:shadow-none hover:brightness-100"
+      >
+        <CardContent className="p-4 space-y-3 cursor-pointer hover:scale-100 hover:bg-transparent hover:shadow-none hover:brightness-100">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <h3 className="font-semibold text-base truncate">{c.client.name}</h3>
