@@ -30,6 +30,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { neutralizeCsvCell } from "@/lib/export-utils";
 
 interface TermsRecord {
   id: string;
@@ -122,22 +123,24 @@ export default function TermsAcceptancePage() {
     if (records.length === 0) return;
     
     const headers = ["תאריך", "מייל", "שם", "סוג", "פעולה", "מסלול", "חודשים", "סכום", "IP", "גרסה"];
+    // נטרול formula-injection (CSV) על ערכים שמקורם במשתמש — email/שם/IP/מסלול.
     const rows = records.map(r => [
       formatDate(r.createdAt),
-      r.userEmail,
-      r.userName || "-",
+      neutralizeCsvCell(r.userEmail),
+      r.userName ? neutralizeCsvCell(r.userName) : "-",
       getTypeLabel(r.termsType),
       getActionLabel(r.action),
-      r.planSelected || "-",
+      r.planSelected ? neutralizeCsvCell(r.planSelected) : "-",
       r.billingMonths?.toString() || "-",
       r.amountAgreed ? `₪${r.amountAgreed}` : "-",
-      r.ipAddress || "-",
+      r.ipAddress ? neutralizeCsvCell(r.ipAddress) : "-",
       r.termsVersion,
     ]);
 
     const csvContent = [
       headers.join(","),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
+      // escape של גרשיים כפולים בתוך התא כדי לא לשבור את מבנה ה-CSV.
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
     ].join("\n");
 
     const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });

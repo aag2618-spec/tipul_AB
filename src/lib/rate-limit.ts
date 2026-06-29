@@ -230,6 +230,16 @@ export const SMS_SEND_USER_RATE_LIMIT = { maxRequests: 10, windowMs: 60 * 60 * 1
 export const RECORDING_UPLOAD_PER_USER = { maxRequests: 10, windowMs: 60 * 1000 };
 
 /**
+ * יזום חיוב Cardcom ע"י המטפל — charge-cardcom / charge-cardcom-bulk /
+ * charge-saved-token — 20/דקה לפי משתמש (מפתח משותף לשלושת המסלולים).
+ * בלי הגבלה זו, מטפל מאומת (או חשבון שנפרץ / UI bug) יכול לשגר ריבוי בקשות
+ * חיוב ולגרום לשימוש לרעה מול Cardcom ולחיובים חוזרים. charge-saved-token
+ * מבצע חיוב מיידי ולכן הכי רגיש. 20/דקה מאפשר עבודת גבייה לגיטימית (סגירת
+ * חובות בסוף חודש) ועוצר loops/abuse. תקציב משותף = הגנה מצרפית טובה יותר.
+ */
+export const CARDCOM_CHARGE_USER_RATE_LIMIT = { maxRequests: 20, windowMs: 60 * 1000 };
+
+/**
  * M13.4 — Bulk exports (per-user): 3 exports / שעה.
  * exports של PHI ענקיים (clients/[id]/export, clients/export-all, payments/export)
  * הם וקטור scraping/exfiltration. מטפל לגיטימי לא יבצע יותר מ-3 בשעה.

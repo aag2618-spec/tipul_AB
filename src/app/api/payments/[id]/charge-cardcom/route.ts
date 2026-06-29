@@ -19,6 +19,11 @@ import {
   secretaryCan,
 } from "@/lib/scope";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
+import {
+  checkRateLimit,
+  CARDCOM_CHARGE_USER_RATE_LIMIT,
+  rateLimitResponse,
+} from "@/lib/rate-limit";
 import { chargeCardcomSchema } from "@/lib/validations/payment";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +44,10 @@ export async function POST(
       { status: 403 }
     );
   }
+
+  // הגבלת קצב פר-משתמש על יזום חיוב (מפתח משותף לשלושת מסלולי החיוב).
+  const rl = checkRateLimit(`cardcom-charge:${userId}`, CARDCOM_CHARGE_USER_RATE_LIMIT);
+  if (!rl.allowed) return rateLimitResponse(rl);
 
   const { id: paymentId } = await context.params;
 

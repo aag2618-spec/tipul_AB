@@ -131,14 +131,9 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString(),
     });
 
-    return NextResponse.json({
-      message: "הסיסמה אופסה בהצלחה",
-      user: {
-        email: user.email,
-        name: user.name,
-        role: user.role,
-      },
-    });
+    // תשובה גנרית אחידה — זהה למקרה "משתמש לא נמצא" כדי לא לדלוף קיום חשבון
+    // ו-role דרך הבדל בתגובה. ה-role/email/name כבר נרשמים ב-logger.warn לאודיט.
+    return NextResponse.json({ message: "הסיסמה אופסה בהצלחה" });
   } catch (error) {
     logger.error("[admin/reset-password] internal error", {
       ip,

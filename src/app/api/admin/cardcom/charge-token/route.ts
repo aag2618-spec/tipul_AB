@@ -23,16 +23,10 @@ export async function POST(request: NextRequest) {
   if ("error" in auth) return auth.error;
   const { session } = auth;
 
-  // Idempotency
+  // Idempotency — הכותרת נקראת כאן, אבל המפתח נבנה (ונבדק) רק אחרי אימות
+  // הגוף, כי הוא חייב לכלול את הנתיב + מזהה תשלום המנוי. בלי רכיב הנתיב/הישות
+  // אותו Idempotency-Key במסלול refund היה מחזיר תגובה שגויה (replay חוצה-מסלול).
   const idempotencyKey = request.headers.get("Idempotency-Key") ?? request.headers.get("idempotency-key");
-  if (idempotencyKey) {
-    const existing = await prisma.idempotencyKey.findUnique({
-      where: { key: `${session.user.id}:${idempotencyKey}` },
-    });
-    if (existing) {
-      return NextResponse.json(existing.response, { status: existing.statusCode });
-    }
-  }
 
   let body: ChargeTokenBody;
   try {
@@ -46,6 +40,20 @@ export async function POST(request: NextRequest) {
       { message: "subscriptionPaymentId ו-savedCardTokenId חובה" },
       { status: 400 }
     );
+  }
+
+  // מפתח idempotency מלא — userId + method + path + מזהה תשלום המנוי + הכותרת.
+  // ה-TTL נאכף בקריאה (שורה שפג תוקפה לא תוחזר מהקאש).
+  const idempotencyDbKey = idempotencyKey
+    ? `${session.user.id}:POST:/api/admin/cardcom/charge-token:${body.subscriptionPaymentId}:${idempotencyKey}`
+    : null;
+  if (idempotencyDbKey) {
+    const existing = await prisma.idempotencyKey.findUnique({
+      where: { key: idempotencyDbKey },
+    });
+    if (existing && existing.expiresAt > new Date()) {
+      return NextResponse.json(existing.response, { status: existing.statusCode });
+    }
   }
 
   const [subscriptionPayment, savedToken] = await Promise.all([
@@ -190,10 +198,10 @@ export async function POST(request: NextRequest) {
       invalidateJwtCache(result.subscriberUserId);
     }
 
-    if (idempotencyKey) {
+    if (idempotencyDbKey) {
       await prisma.idempotencyKey.create({
         data: {
-          key: `${session.user.id}:${idempotencyKey}`,
+          key: idempotencyDbKey,
           method: "POST",
           path: "/api/admin/cardcom/charge-token",
           statusCode: result.success ? 200 : 200, // both reported via JSON body

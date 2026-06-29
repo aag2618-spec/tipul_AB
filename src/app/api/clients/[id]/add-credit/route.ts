@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import { createPaymentForSession } from "@/lib/payment-service";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
-import { isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
+import { buildClientWhere, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
 import { parseBody } from "@/lib/validations/helpers";
 import { addCreditSchema } from "@/lib/validations/client";
 
@@ -38,6 +38,18 @@ export async function POST(
         { message: "אין הרשאה לפעולות תשלום" },
         { status: 403 }
       );
+    }
+
+    // Defense-in-depth: בדיקת ownership מפורשת על מזהה המטופל מה-URL, עקבית עם
+    // שאר מסלולי [id]. כיום הבידוד הרב-ארגוני נשען עקיפות על scopeUser שמועבר
+    // ל-createPaymentForSession; הבדיקה כאן מבטיחה שה-route לא יישבר ל-IDOR
+    // פיננסי אם מימוש ה-service ישתנה בעתיד.
+    const ownedClient = await prisma.client.findFirst({
+      where: { AND: [{ id }, buildClientWhere(scopeUser)] },
+      select: { id: true },
+    });
+    if (!ownedClient) {
+      return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
     }
 
     const result = await createPaymentForSession({

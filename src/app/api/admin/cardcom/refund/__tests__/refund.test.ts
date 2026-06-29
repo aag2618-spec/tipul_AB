@@ -252,6 +252,8 @@ describe("POST /api/admin/cardcom/refund — idempotency", () => {
     findUniqueIdem.mockResolvedValue({
       response: { success: true, refundId: "cached" },
       statusCode: 200,
+      // ה-route אוכף עכשיו TTL (expiresAt > now) — שורה שפג תוקפה לא תוחזר.
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
     });
     const res = await callPOST(
       makeRequest(

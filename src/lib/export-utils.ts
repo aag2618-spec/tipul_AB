@@ -74,6 +74,18 @@ function formatDate(date: Date | string | null): string {
   return format(new Date(date), "dd/MM/yyyy", { locale: he });
 }
 
+/**
+ * נטרול הזרקת נוסחאות (CSV / Formula Injection).
+ * ערך טקסט שמקורו במשתמש (שם מטופל, מספר קבלה, שם עסק) ומתחיל בתו-נוסחה
+ * — = , + , - , @ , tab או CR — עלול להתפרש כנוסחה כשהקובץ נפתח באקסל
+ * (למשל =HYPERLINK / =cmd|'/c calc'!A1), מה שיכול לדלוף תוכן תאים לכתובת
+ * חיצונית. הקדמת גרש בודד (') מאלצת את אקסל להתייחס לתא כטקסט בלבד.
+ * מוחל רק על ערכים שמקורם במשתמש — לא על תוויות/ליטרלים שאנחנו שולטים בהם.
+ */
+export function neutralizeCsvCell(value: string): string {
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+}
+
 // ============ DETAILED EXPORT (Excel) ============
 export async function exportDetailedExcel(
   payments: PaymentExportData[],
@@ -108,14 +120,14 @@ export async function exportDetailedExcel(
       Number(p.amount) < Number(p.expectedAmount);
     ws.addRow([
       formatDate(p.paidAt),
-      p.clientName,
+      neutralizeCsvCell(p.clientName),
       `₪${p.amount}`,
       `₪${p.expectedAmount}`,
       getMethodLabel(p.method),
       p.status === "PAID" ? "שולם" : partialPaid ? "שולם חלקית" : "ממתין",
       p.sessionDate ? formatDate(p.sessionDate) : "-",
-      p.sessionType || "-",
-      p.receiptNumber || "-",
+      p.sessionType ? neutralizeCsvCell(p.sessionType) : "-",
+      p.receiptNumber ? neutralizeCsvCell(p.receiptNumber) : "-",
       p.hasReceipt ? "כן" : "לא",
     ]);
   });
@@ -479,7 +491,7 @@ export async function exportAccountantReport(
   // --- Sheet 1: סיכום שנתי ---
   const periodLabel = quarter ? `רבעון ${quarter}, ${year}` : `${year}`;
   const summaryRows: (string | number)[][] = [
-    ["שם העסק", businessName],
+    ["שם העסק", neutralizeCsvCell(businessName)],
     ["תקופת דיווח", periodLabel],
     ["תאריך הפקה", format(new Date(), "dd/MM/yyyy HH:mm")],
     ["", ""],
@@ -528,9 +540,9 @@ export async function exportAccountantReport(
       r.paidAt
         ? format(new Date(r.paidAt), "dd/MM/yyyy")
         : format(new Date(r.createdAt), "dd/MM/yyyy"),
-      r.receiptNumber || "-",
+      r.receiptNumber ? neutralizeCsvCell(r.receiptNumber) : "-",
       bulkLabel,
-      r.clientName,
+      neutralizeCsvCell(r.clientName),
       Number(r.amount),
       getMethodLabel(r.method),
       getReceiptSource(r.receiptUrl),
@@ -620,7 +632,8 @@ export function exportToCSV(
       .map((h) => {
         const value = row[h.key];
         if (value === null || value === undefined) return '""';
-        const str = String(value).replace(/"/g, '""');
+        // נטרול formula-injection לפני escape של גרשיים כפולים.
+        const str = neutralizeCsvCell(String(value)).replace(/"/g, '""');
         return `"${str}"`;
       })
       .join(",")

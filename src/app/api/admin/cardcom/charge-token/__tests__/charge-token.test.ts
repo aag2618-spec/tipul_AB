@@ -265,6 +265,8 @@ describe("POST /api/admin/cardcom/charge-token — idempotency-key reuse", () =>
     findUniqueIdem.mockResolvedValue({
       response: { success: true, transactionId: "cached-tx" },
       statusCode: 200,
+      // ה-route אוכף עכשיו TTL (expiresAt > now) — שורה שפג תוקפה לא תוחזר.
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
     });
     const res = await callPOST(
       makeRequest(
