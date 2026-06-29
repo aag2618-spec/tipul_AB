@@ -17,97 +17,28 @@
 
 import { encrypt, decrypt, isEncrypted } from "@/lib/encryption";
 import { logger } from "@/lib/logger";
+import {
+  ENCRYPTED_FIELDS,
+  ENCRYPTED_JSON_FIELDS,
+  JSON_ENC_MARKER,
+} from "@/lib/encrypted-fields-map";
+
+// מקור-אמת אחד למפות מוגדר ב-`encrypted-fields-map.ts` (נתונים טהורים, ללא
+// imports), כך שגם ה-extension כאן וגם סקריפט ה-rotation (`scripts/
+// rotate-encryption.ts`, רץ תחת tsx שלא פותר alias `@/`) משתמשים באותה רשימה
+// בלי drift. re-export כדי לשמור על המייבאים הקיימים (`prisma.ts`).
+export { ENCRYPTED_FIELDS, ENCRYPTED_JSON_FIELDS };
 
 /**
- * מפת המודלים והשדות שאנחנו מצפינים.
- *
- * המפתחות הם **lowercase** של שמות המודלים (כמו ש-Prisma חושף ב-client).
- * השדות הם רשימת string field names ב-model.
+ * Markers שמוחזרים כש**פענוח** נכשל (key mismatch / נתון פגום). הם מוצגים
+ * למשתמש *במקום* ה-PHI. מיוצאים כמקור-אמת אחד כדי ש:
+ *   1. הproducer (maybeDecrypt/maybeDecryptJson) וה-guard בכתיבה
+ *      (maybeEncrypt/maybeEncryptJson) יתייחסו לאותה מחרוזת בדיוק — אם הטקסט
+ *      ישתנה אי-פעם, שני הצדדים נשארים מסונכרנים ולא נפער חור.
+ *   2. הבדיקות יוכלו להשוות מול אותו ערך בלי לשכפל את הליטרל.
  */
-export const ENCRYPTED_FIELDS: Record<string, readonly string[]> = {
-  client: ["notes", "initialDiagnosis", "intakeNotes", "approachNotes", "culturalContext"],
-  sessionNote: ["content"],
-  therapySession: ["topic", "notes"],
-  // OAuth tokens של Google (Calendar). access_token יכול לקרוא/לכתוב אירועים
-  // ביומן של המשתמש; refresh_token מאפשר לחדש את access_token לתמיד עד
-  // revoke. אם DB ידלוף — תוקף יקבל גישה רציפה ל-Google של כל המטפלים.
-  // הצפנה ב-AES-256-GCM מבטיחה שגם dump של DB לא חושף.
-  account: ["access_token", "refresh_token", "id_token"],
-  // הגדרות חיבור לקופות חולים — credentials של פורטלי הקופות.
-  // meuhedetUsername + meuhedetPassword: login user/pass של פורטל מאוחדת.
-  // clalitApiKey + clalitFacilityId: מזהה מתקן + מפתח API של כללית.
-  // maccabiApiKey + maccabiProviderId: מזהה ספק + מפתח API של מכבי.
-  // leumitApiKey + leumitClinicCode: קוד מרפאה + מפתח API של לאומית.
-  // אם DB ידלוף — תוקף יוכל להגיש דוחות בשם המטפל ו/או לחייב כוזב.
-  // ה-IDs (facilityId/providerId/clinicCode) פחות רגישים בעצמם, אבל הם
-  // משלימים לזיהוי מטפל מול קופה — מצפינים יחד עם ה-API key.
-  insurerSettings: [
-    "meuhedetUsername",
-    "meuhedetPassword",
-    "clalitApiKey",
-    "clalitFacilityId",
-    "maccabiApiKey",
-    "maccabiProviderId",
-    "leumitApiKey",
-    "leumitClinicCode",
-  ],
-  // H4: TOTP secret (base32) של User. אם DB דולף, תוקף יכול ליצור קודים
-  // תקפים ולעבור את ה-2FA. הצפנת AES-256-GCM הופכת את ה-leak לחסר ערך.
-  user: ["twoFactorSecret"],
-  // C3 (סבב אבטחה 14, 2026-05-19): Cardcom recurring token. ה-token מאפשר
-  // חיוב חוזר של הלקוח ב-Cardcom — דליפת DB מאפשרת לתוקף לחייב סכומים
-  // נוספים. `tokenHash` (SHA-256 דטרמיניסטי, נפרד) משמש ל-uniqueness/lookup.
-  // אין משתמשים בייצור עדיין → אין צורך ב-backfill (records חדשים יהיו
-  // מוצפנים מההתחלה; ה-legacy backfill code שמחפש `tokenHash: null` יסונן
-  // החוצה אוטומטית כי records חדשים מקבלים hash מלא).
-  savedCardToken: ["token"],
-  // M16.9 (סבב אבטחה 16f, 2026-05-20): CommunicationLog body fields.
-  // מיילים/SMS שמטפל שולח/מקבל למטופל עלולים להכיל PHI: "תזכורת לפגישה
-  // לגבי הסוגיה ש...", "נא להביא את התרופה X", subject "תוצאות אבחון".
-  // לפי חוק זכויות החולה תקשורת רפואית = PHI.
-  //
-  // בדוק קודם שאין WHERE על content/subject בקוד (lookup חוזר במצב מוצפן
-  // לא יעבוד) — Grep לא מצא בעיה. dual-read של maybeDecrypt יטפל אוטומטית
-  // ב-records ישנים שעדיין plaintext.
-  //
-  // errorMessage: לרוב Resend/Pulseem error strings (לא PHI), אבל יכול
-  // להכיל data מהbody — מצפינים defensively.
-  communicationLog: ["content", "subject", "errorMessage"],
-  // R18f (סבב אבטחה 18, 2026-05-25): מודלים קליניים @db.Text. dual-read מטפל ב-plaintext ישן.
-  consentForm: ["content", "signatureData"],
-  insurerReport: ["reportData", "errorMessage"],
-} as const;
-
-/**
- * Phase 4.5 — שדות JSON שצריכים להיות מוצפנים.
- *
- * JSON ב-Prisma הוא `Json?` — לא string. אנחנו לא יכולים להחליף אותו ב-string
- * המוצפן ישירות (Prisma יידחה את הכתיבה). במקום, אנחנו עוטפים את ה-value
- * המוצפן ב-marker object: `{ "__enc__": "<encrypted-string>" }`.
- *
- * בקריאה — מחפשים את ה-marker, מפענחים, ומחזירים את ה-value המקורי.
- *
- * תועלת: לא דורש schema change. JSON field נשאר Json בschema.
- *
- * שדות שמכילים מידע קליני רגיש:
- * - Client.medicalHistory — היסטוריה רפואית
- * - SessionNote.aiAnalysis — ניתוח AI של פגישה
- * - Analysis.keyTopics, emotionalMarkers, recommendations — נושאים, רגשות, המלצות
- *
- * Transcription.timestamps לא נכלל — חותמות זמן בלבד, פחות רגיש.
- */
-export const ENCRYPTED_JSON_FIELDS: Record<string, readonly string[]> = {
-  client: ["medicalHistory"],
-  // H13 (סבב אבטחה 14, 2026-05-19): answers של שאלוני הערכה (התשובות הקליניות
-  // עצמן של הלקוח). dual-read: `maybeDecryptJson` (line 167-186) מטפל ב-legacy
-  // plaintext אוטומטית — records ישנים ממשיכים לעבוד.
-  questionnaireResponse: ["answers"],
-  // H13: responses של intake (שאלון קבלה קליני). מכיל מידע אישי, רקע, וכל
-  // מה שהמטופל ענה ב-onboarding. dual-read.
-  intakeResponse: ["responses"],
-} as const;
-
-const JSON_ENC_MARKER = "__enc__";
+export const DECRYPT_ERROR_MARKER = "[שגיאת פענוח — צור קשר עם תמיכה]";
+export const DECRYPT_JSON_ERROR_MARKER = "[שגיאת פענוח JSON — צור קשר עם תמיכה]";
 
 export type EncryptedModel = keyof typeof ENCRYPTED_FIELDS;
 
@@ -121,6 +52,19 @@ export type EncryptedModel = keyof typeof ENCRYPTED_FIELDS;
  */
 function maybeEncrypt(value: unknown): unknown {
   if (typeof value !== "string" || value.length === 0) return value;
+  // GUARD (חלק א', סבב אבטחה 2026-06-29): סירוב להצפין את ה-marker של שגיאת
+  // פענוח. בלעדיו, אם פענוח נכשל פעם אחת (key mismatch / נתון פגום),
+  // maybeDecrypt מחזיר את ה-marker, המשתמש רואה אותו בטופס ושומר — ואז היינו
+  // מצפינים את ה-marker וכותבים אותו ל-DB, מוחקים לצמיתות את ה-PHI המקורי.
+  // עדיף להיכשל רועש (הכתיבה כולה נדחית) מאשר לאבד מידע קליני בשקט.
+  if (value === DECRYPT_ERROR_MARKER) {
+    logger.error(
+      "[Encryption] Refusing to encrypt decryption-error marker — would overwrite PHI",
+    );
+    throw new Error(
+      "Refusing to persist decryption-error marker — original PHI would be overwritten",
+    );
+  }
   if (isEncrypted(value)) return value;
   try {
     return encrypt(value);
@@ -151,7 +95,7 @@ function maybeDecrypt(value: unknown): unknown {
       preview: value.substring(0, 60),
     });
     // FAIL-SOFT: בקריאה — לא לזרוק. נחזיר marker שיציג למשתמש שיש בעיה.
-    return "[שגיאת פענוח — צור קשר עם תמיכה]";
+    return DECRYPT_ERROR_MARKER;
   }
 }
 
@@ -161,6 +105,22 @@ function maybeDecrypt(value: unknown): unknown {
  */
 function maybeEncryptJson(value: unknown): unknown {
   if (value === null || value === undefined) return value;
+  // GUARD (חלק א', סבב אבטחה 2026-06-29): סירוב להצפין את צורת כשל הפענוח של
+  // JSON. כשפענוח JSON נכשל, maybeDecryptJson מחזיר `{ error: <marker> }`.
+  // אם המשתמש שומר אז — בלי הguard היינו עוטפים ומצפינים את אובייקט השגיאה
+  // ודורסים לצמיתות את ה-PHI ה-JSON המקורי. כמו בטקסט — נכשל רועש, לא דורס.
+  if (
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    (value as Record<string, unknown>).error === DECRYPT_JSON_ERROR_MARKER
+  ) {
+    logger.error(
+      "[Encryption] Refusing to encrypt JSON decryption-error marker — would overwrite PHI",
+    );
+    throw new Error(
+      "Refusing to persist JSON decryption-error marker — original PHI would be overwritten",
+    );
+  }
   // כבר marker — לא להצפין שוב
   if (
     typeof value === "object" &&
@@ -206,7 +166,7 @@ function maybeDecryptJson(value: unknown): unknown {
     logger.error("[Encryption] Failed to decrypt JSON field", {
       error: err instanceof Error ? err.message : String(err),
     });
-    return { error: "[שגיאת פענוח JSON — צור קשר עם תמיכה]" };
+    return { error: DECRYPT_JSON_ERROR_MARKER };
   }
 }
 
