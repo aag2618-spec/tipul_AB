@@ -40,17 +40,24 @@ export async function POST(
   if ("error" in auth) return auth.error;
   const { userId, session } = auth;
 
-  // Idempotency
+  const { id: paymentId } = await context.params;
+
+  // Idempotency — המפתח חייב להיות מקובע ל-(userId, route, paymentId, header)
+  // אחרת replay בין routes/תשלומים שונים יחזיר תגובה שגויה. ה-TTL נאכף גם
+  // בקריאה (לא רק ב-cron) — שורה שפג תוקפה לא מוחזרת מהקאש.
   const idempotencyKey =
     request.headers.get("Idempotency-Key") ?? request.headers.get("idempotency-key");
-  if (idempotencyKey) {
+  const idempotencyDbKey = idempotencyKey
+    ? `${userId}:POST:/api/payments/${paymentId}/cardcom-refund:${idempotencyKey}`
+    : null;
+  if (idempotencyDbKey) {
     const existing = await prisma.idempotencyKey.findUnique({
-      where: { key: `${userId}:${idempotencyKey}` },
+      where: { key: idempotencyDbKey },
     });
-    if (existing) return NextResponse.json(existing.response, { status: existing.statusCode });
+    if (existing && existing.expiresAt > new Date()) {
+      return NextResponse.json(existing.response, { status: existing.statusCode });
+    }
   }
-
-  const { id: paymentId } = await context.params;
 
   // H2: zod strict — reason חובה, amount אופציונלי, חוסם שדות לא ידועים.
   let body: RefundBody;
@@ -442,11 +449,11 @@ export async function POST(
       }
     );
 
-    if (idempotencyKey) {
+    if (idempotencyDbKey) {
       try {
         await prisma.idempotencyKey.create({
           data: {
-            key: `${userId}:${idempotencyKey}`,
+            key: idempotencyDbKey,
             method: "POST",
             path: `/api/payments/${payment.id}/cardcom-refund`,
             statusCode: 200,
