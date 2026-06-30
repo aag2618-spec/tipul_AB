@@ -10,6 +10,7 @@
 // ו-buildPaymentWhere מחזיר deny-filter כשאין canViewPayments. Server Component.
 import Link from "next/link";
 import { Suspense } from "react";
+import { ClinicCalendarLink } from "@/components/dashboard/clinic-calendar-link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -492,10 +493,10 @@ export async function SecretaryHome({
             </Button>
           )}
           <Button asChild>
-            <Link href="/dashboard/calendar?new=true&scope=clinic">
+            <ClinicCalendarLink href="/dashboard/calendar?new=true&scope=clinic">
               <CalendarPlus className="h-4 w-4 ml-2" />
               פגישה חדשה
-            </Link>
+            </ClinicCalendarLink>
           </Button>
         </div>
       </div>
@@ -520,7 +521,7 @@ export async function SecretaryHome({
                 </CardDescription>
               </div>
               <Button variant="outline" size="sm" asChild>
-                <Link href="/dashboard/calendar">ליומן</Link>
+                <ClinicCalendarLink href="/dashboard/calendar">ליומן</ClinicCalendarLink>
               </Button>
             </CardHeader>
             <CardContent>
@@ -535,7 +536,7 @@ export async function SecretaryHome({
                   <Calendar className="mx-auto h-12 w-12 mb-3 opacity-50" />
                   <p>אין פגישות מתוכננות להיום</p>
                   <Button variant="link" asChild className="mt-2">
-                    <Link href="/dashboard/calendar?new=true&scope=clinic">קביעת פגישה חדשה</Link>
+                    <ClinicCalendarLink href="/dashboard/calendar?new=true&scope=clinic">קביעת פגישה חדשה</ClinicCalendarLink>
                   </Button>
                 </div>
               )}
@@ -557,7 +558,7 @@ export async function SecretaryHome({
                 </CardDescription>
               </div>
               <Button variant="outline" size="sm" asChild>
-                <Link href={`/dashboard/calendar?date=${tomorrowParam}`}>ליומן</Link>
+                <ClinicCalendarLink href={`/dashboard/calendar?date=${tomorrowParam}`}>ליומן</ClinicCalendarLink>
               </Button>
             </CardHeader>
             <CardContent>
@@ -625,23 +626,23 @@ export async function SecretaryHome({
                       timeZone: "Asia/Jerusalem",
                     })}`;
                     return (
-                      <Link
+                      <ClinicCalendarLink
                         key={c.id}
                         href={`/dashboard/calendar?date=${dateParam}&highlight=${c.id}`}
                         className="flex items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50/60 dark:bg-amber-900/20 px-3 py-2 hover:bg-amber-100/60 transition-colors"
                       >
                         <span className="text-sm truncate">{c.client?.name || "מטופל/ת"}</span>
                         <span className="text-xs text-muted-foreground shrink-0">{when}</span>
-                      </Link>
+                      </ClinicCalendarLink>
                     );
                   })}
                   {cancellationRequests > cancellationList.length && (
-                    <Link
+                    <ClinicCalendarLink
                       href="/dashboard/calendar"
                       className="block px-1 text-xs text-muted-foreground hover:text-primary"
                     >
                       + עוד {cancellationRequests - cancellationList.length} בקשות — ליומן
-                    </Link>
+                    </ClinicCalendarLink>
                   )}
                 </div>
               )}
