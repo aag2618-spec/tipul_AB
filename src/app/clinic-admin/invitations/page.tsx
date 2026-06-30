@@ -262,7 +262,7 @@ export default function ClinicInvitationsPage() {
             <UserPlus className="h-6 w-6 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">הזמנות לקליניקה</h1>
+            <h1 className="text-2xl font-bold">צירוף אנשי צוות לקליניקה</h1>
             <p className="text-sm text-muted-foreground">
               {loading
                 ? "טוען..."

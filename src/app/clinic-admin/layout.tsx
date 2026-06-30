@@ -92,7 +92,7 @@ const navItems: NavItem[] = [
   // מטלות צוות — הקצאת מטלות לעובדים ומעקב ביצוע. נגיש לבעלים, ולמזכיר/ה עם
   // canAssignTasks (secretaryWithAssign). השרת אוכף את ההרשאה ב-/api/clinic-admin/tasks.
   { href: "/clinic-admin/tasks", label: "מטלות צוות", icon: ClipboardList, secretaryWithAssign: true },
-  { href: "/clinic-admin/invitations", label: "הזמנות פעילות", icon: UserPlus },
+  { href: "/clinic-admin/invitations", label: "צירוף לקליניקה", icon: UserPlus },
   // ניהול חדרי טיפול (שלב 2) — בעלת קליניקה בלבד (תשתית/קונפיגורציה).
   { href: "/clinic-admin/rooms", label: "ניהול חדרים", icon: DoorOpen },
   { href: "/clinic-admin/transfer", label: "העברת מטופל", icon: ArrowLeftRight, secretaryWithTransfer: true },
