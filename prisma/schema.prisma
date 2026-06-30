@@ -1505,7 +1505,10 @@ model QuestionnaireResponse {
   // קישור מילוי ציבורי: המטופל/ההורה ממלא/ת את השאלון דרך קישור אישי בלי
   // התחברות (כמו IntakeInvite). 16 בייט hex = 32 תווים. null = נוצר/מולא בתוך
   // המערכת ע"י המטפל, או קישור שכבר נוצל (חד-פעמי — מתאפס אחרי המילוי).
-  token          String?   @unique @db.VarChar(32)
+  // בכוונה ללא @unique: השליפה הציבורית היא לפי id (ואז אימות-טוקן בזמן-קבוע),
+  // לא לפי token — אז אילוץ ייחודיות מיותר, וגם חוסם `prisma db push` בדפלוי
+  // (הוספת unique constraint לטבלה קיימת מסומנת כ"אובדן מידע אפשרי").
+  token          String?   @db.VarChar(32)
   tokenExpiresAt DateTime?
   sentAt         DateTime? // מתי הקישור נשלח בפועל (SMS/מייל) — null אם רק הועתק
   filledViaLink  Boolean   @default(false) // האם מולא ע"י המטופל דרך הקישור
