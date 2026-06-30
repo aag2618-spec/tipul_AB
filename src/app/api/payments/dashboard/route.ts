@@ -78,6 +78,32 @@ export async function GET() {
       }),
     ]);
 
+    // דחיות חוב פעילות (snoozeUntil עתידי) — להצגת תווית "נדחה עד" בכרטיס
+    // המטופל. המטופל נשאר ברשימה (עדיין חייב), רק לא נספר בעיגול שבתפריט.
+    // עטוף ב-try/catch כרשת ביטחון: אם הטבלה עדיין לא קיימת (לפני db push),
+    // הדף ממשיך לעבוד בלי דחיות במקום להיכשל (אותו דפוס כמו overlaps GET).
+    const snoozeMap = new Map<string, Date>();
+    try {
+      if (clientDebts.length) {
+        const snoozes = await prisma.snoozedDebt.findMany({
+          where: {
+            clientId: { in: clientDebts.map((d) => d.id) },
+            snoozeUntil: { gt: new Date() },
+          },
+          select: { clientId: true, snoozeUntil: true },
+        });
+        for (const s of snoozes) snoozeMap.set(s.clientId, s.snoozeUntil);
+      }
+    } catch (e) {
+      logger.warn("SnoozedDebt query failed (table missing before db push?)", {
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+    const clientDebtsWithSnooze = clientDebts.map((d) => ({
+      ...d,
+      snoozeUntil: snoozeMap.get(d.id) ?? null,
+    }));
+
     // --- Monthly ---
     const now = new Date();
     const israelYear = getIsraelYear(now);
@@ -140,7 +166,7 @@ export async function GET() {
       });
 
     return NextResponse.json({
-      debts: clientDebts,
+      debts: clientDebtsWithSnooze,
       monthly: { total: monthlyTotal, count: thisMonthCount, breakdown },
       history: { items: historyItems, hasMore, nextSkip: trimmed.length },
     });

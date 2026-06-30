@@ -543,6 +543,9 @@ model Client {
   // רשימת המתנה — מטופל שממתין למשבצת מוקדמת/פנויה. Cascade במחיקת מטופל.
   waitlistEntries WaitlistEntry[]
 
+  // דחיית התראת חוב — "אל תזכיר לי על החוב של המטופל הזה עד תאריך X". Cascade.
+  snoozedDebt SnoozedDebt?
+
   @@index([organizationId])
   @@index([organizationId, therapistId])
   @@index([therapistId])
@@ -818,6 +821,25 @@ model DismissedOverlap {
 
   @@unique([userId, pairKey])
   @@index([userId])
+}
+
+// דחיית התראת חוב — "אל תזכיר לי על החוב של המטופל הזה עד תאריך X". בניגוד
+// ל-DismissedOverlap (פר-משתמש), הדחייה כאן משותפת ברמת המטופל (clientId
+// unique): דחיית חוב היא החלטה עסקית ("יש לנו הסדר תשלום חודשי"), אז אם
+// המזכירה דחתה — גם הבעלים רואה את החוב כדחוי. הסינון למי בכלל רואה את
+// המטופל כבר נעשה ע"י buildPaymentWhere(scopeUser) בשאילתות התשלומים.
+// snoozedById = מי ביצע את הדחייה (לתיעוד בלבד). העיגול בתפריט ודף התשלומים
+// מתעלמים ממטופל שיש לו snoozeUntil עתידי.
+model SnoozedDebt {
+  id          String   @id @default(cuid())
+  clientId    String   @unique
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  snoozeUntil DateTime
+  snoozedById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([clientId])
 }
 
 // ==================== Notifications & Tasks ====================
@@ -1479,6 +1501,14 @@ model QuestionnaireResponse {
   completedAt DateTime?
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
+
+  // קישור מילוי ציבורי: המטופל/ההורה ממלא/ת את השאלון דרך קישור אישי בלי
+  // התחברות (כמו IntakeInvite). 16 בייט hex = 32 תווים. null = נוצר/מולא בתוך
+  // המערכת ע"י המטפל, או קישור שכבר נוצל (חד-פעמי — מתאפס אחרי המילוי).
+  token          String?   @unique @db.VarChar(32)
+  tokenExpiresAt DateTime?
+  sentAt         DateTime? // מתי הקישור נשלח בפועל (SMS/מייל) — null אם רק הועתק
+  filledViaLink  Boolean   @default(false) // האם מולא ע"י המטופל דרך הקישור
 
   templateId String
   template   QuestionnaireTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)

@@ -114,3 +114,30 @@ export const chargeSavedTokenSchema = z
     savedCardTokenId: idString(),
   })
   .strict();
+
+// snooze-debt POST — דחיית התראת חוב של מטופל ("אל תזכיר לי עד תאריך X").
+export const snoozeDebtSchema = z
+  .object({
+    clientId: idString(),
+    // ISO datetime עתידי. הלקוח מחשב לפי שבוע/חודש/תאריך נבחר; השרת מאמת
+    // שהוא בעתיד וחוסם דחייה רחוקה מדי (מקס ~13 חודשים) כדי שחוב לא ייעלם לנצח.
+    snoozeUntil: z
+      .string()
+      .datetime()
+      .refine(
+        (val) => {
+          const t = new Date(val).getTime();
+          const now = Date.now();
+          return t > now && t <= now + 400 * 24 * 60 * 60 * 1000;
+        },
+        { message: "תאריך דחייה לא תקין" }
+      ),
+  })
+  .strict();
+
+// snooze-debt DELETE — ביטול דחייה.
+export const unsnoozeDebtSchema = z
+  .object({
+    clientId: idString(),
+  })
+  .strict();

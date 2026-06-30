@@ -4,6 +4,14 @@
  * All trunk read functions delegate to these for consistency.
  */
 
+/**
+ * סף "גיול חוב" — חוב נחשב "חורג" (וראוי להתראה בעיגול שליד "תשלומים"
+ * בתפריט) רק כשהפגישה הלא-משולמת הוותיקה ביותר עברה את מספר הימים הזה.
+ * חוב טרי לא נספר — כדי שהעיגול יהיה אות אמיתי ולא רעש. מקור-אמת יחיד:
+ * גם endpoint הספירה (overdue-count) וגם ההבלטה בדף התשלומים משתמשים בו.
+ */
+export const DEBT_OVERDUE_DAYS = 14;
+
 export function calculateDebtFromPayments(
   payments: Array<{ amount: unknown; expectedAmount: unknown }>
 ): number {

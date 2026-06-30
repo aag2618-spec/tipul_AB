@@ -19,7 +19,6 @@ import {
   CalendarClock,
   CalendarPlus,
   UserPlus,
-  CreditCard,
   CalendarX2,
   CheckCircle2,
   DoorOpen,
@@ -29,12 +28,10 @@ import {
 import prisma from "@/lib/prisma";
 import {
   buildSessionWhere,
-  buildPaymentWhere,
   secretaryCan,
   canManageStaffTasks,
   type ScopeUser,
 } from "@/lib/scope";
-import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
 import { getTherapistAccent } from "@/lib/calendar/event-colors";
 import { getIsraelDayBoundsUtc } from "@/lib/timezone";
 import { calculatePaidAmount } from "@/lib/payment-utils";
@@ -228,7 +225,6 @@ async function getSecretaryData(scopeUser: ScopeUser) {
     dayAfterSessions,
     cancellationRequests,
     cancellationList,
-    pendingPaymentsRaw,
   ] = await Promise.all([
     prisma.therapySession.findMany({
       where: {
@@ -277,43 +273,7 @@ async function getSecretaryData(scopeUser: ScopeUser) {
       orderBy: { startTime: "asc" },
       take: 5,
     }),
-    // תשלומים פתוחים — רק אם למזכירה יש canViewPayments (אחרת deny-filter
-    // מחזיר ריק ממילא, אבל נמנעים מהשאילתה).
-    canViewPayments
-      ? prisma.payment.findMany({
-          where: {
-            AND: [
-              buildPaymentWhere(scopeUser),
-              EXCLUDE_BULK_UMBRELLA_WHERE,
-              { status: "PENDING", parentPaymentId: null },
-            ],
-          },
-          select: {
-            id: true,
-            amount: true,
-            expectedAmount: true,
-            client: { select: { id: true, name: true } },
-          },
-        })
-      : Promise.resolve(
-          [] as {
-            id: string;
-            amount: unknown;
-            expectedAmount: unknown;
-            client: { id: string; name: string | null } | null;
-          }[]
-        ),
   ]);
-
-  // יתרה פתוחה לכל תשלום + סינון לאלו שבאמת חייבים, מהגדול לקטן.
-  const openPayments = pendingPaymentsRaw
-    .map((p) => ({
-      id: p.id,
-      client: p.client,
-      remaining: (Number(p.expectedAmount) || 0) - (Number(p.amount) || 0),
-    }))
-    .filter((p) => p.remaining > 0)
-    .sort((a, b) => b.remaining - a.remaining);
 
   // חיווי "תזכורת נשלחה" לשורות היום/מחר/יומיים — שאילתה אחת מקובצת (לא N+1).
   const dayIds = [...todaySessions, ...tomorrowSessions, ...dayAfterSessions].map(
@@ -376,9 +336,6 @@ async function getSecretaryData(scopeUser: ScopeUser) {
     dayAfterSessions: dayAfterSessions.map(mapRow),
     cancellationRequests,
     cancellationList,
-    pendingPayments: openPayments.length,
-    pendingPaymentsList: openPayments.slice(0, 5),
-    canViewPayments,
   };
 }
 
@@ -398,9 +355,6 @@ export async function SecretaryHome({
     dayAfterSessions,
     cancellationRequests,
     cancellationList,
-    pendingPayments,
-    pendingPaymentsList,
-    canViewPayments,
   } = await getSecretaryData(scopeUser);
 
   const canCreateClient = secretaryCan(scopeUser, "canCreateClient");
@@ -437,7 +391,7 @@ export async function SecretaryHome({
   const clientSessions = todaySessions.filter((s) => s.type !== "BREAK");
   const tomorrowClientSessions = tomorrowSessions.filter((s) => s.type !== "BREAK");
 
-  const hasExceptions = cancellationRequests > 0 || (canViewPayments && pendingPayments > 0);
+  const hasExceptions = cancellationRequests > 0;
 
   // תווית "בעוד יומיים" + נתוני פגישות לכרטיס הפעולות המהירות (שליחת תזכורות).
   // hasContact נגזר בשרת בלבד — טלפון/מייל אינם נשלחים ל-client (צמצום PHI).
@@ -643,39 +597,6 @@ export async function SecretaryHome({
                     >
                       + עוד {cancellationRequests - cancellationList.length} בקשות — ליומן
                     </ClinicCalendarLink>
-                  )}
-                </div>
-              )}
-              {canViewPayments && pendingPayments > 0 && (
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-2 text-sm font-medium">
-                      <CreditCard className="h-4 w-4 text-orange-600" />
-                      תשלומים פתוחים
-                    </span>
-                    <Badge className="bg-orange-500/20 text-orange-700 dark:text-orange-300">
-                      {pendingPayments}
-                    </Badge>
-                  </div>
-                  {pendingPaymentsList.map((p) => (
-                    <Link
-                      key={p.id}
-                      href="/dashboard/payments"
-                      className="flex items-center justify-between gap-2 rounded-md border border-orange-200 bg-orange-50/60 dark:bg-orange-900/20 px-3 py-2 hover:bg-orange-100/60 transition-colors"
-                    >
-                      <span className="text-sm truncate">{p.client?.name || "מטופל/ת"}</span>
-                      <span className="text-xs font-medium shrink-0">
-                        ₪{Math.round(p.remaining).toLocaleString("he-IL")}
-                      </span>
-                    </Link>
-                  ))}
-                  {pendingPayments > pendingPaymentsList.length && (
-                    <Link
-                      href="/dashboard/payments"
-                      className="block px-1 text-xs text-muted-foreground hover:text-primary"
-                    >
-                      + עוד {pendingPayments - pendingPaymentsList.length} — לתשלומים
-                    </Link>
                   )}
                 </div>
               )}

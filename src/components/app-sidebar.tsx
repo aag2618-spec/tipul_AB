@@ -217,6 +217,45 @@ export function AppSidebar({ user, initialViewMode = "personal" }: AppSidebarPro
   // רשימת המתנה דרך canCreateClient; דוחות דרך canViewStats. UI gating בלבד.
   const can = (perm: boolean) => !permsLoading && perm;
 
+  // עיגול "חוב חורג" על פריט "תשלומים" — מספר המטופלים עם חוב מעל DEBT_OVERDUE_DAYS
+  // (14 יום) שלא נדחו. polling שקט כל 60 שניות (חובות לא דחופים כמו צ'אט). gate:
+  // מטפל/בעלים תמיד; מזכיר/ה רק עם canViewPayments. ה-endpoint גם מחזיר 0 לחסרי
+  // הרשאה (deny-filter), אז אין כאן חשיפת מידע — רק חיסכון ב-polling מיותר.
+  const canSeePayments = isSecretaryUser ? can(permissions.canViewPayments) : true;
+  const [overduePayments, setOverduePayments] = useState(0);
+  useEffect(() => {
+    if (!canSeePayments) return;
+    let active = true;
+    const fetchOverdue = async () => {
+      try {
+        const res = await fetch("/api/payments/overdue-count");
+        if (res.ok && active) {
+          const data = await res.json();
+          setOverduePayments(data.count || 0);
+        }
+      } catch {
+        // שקט — polling
+      }
+    };
+    fetchOverdue();
+    const interval = setInterval(fetchOverdue, 60000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [canSeePayments]);
+
+  const paymentsItem: NavItem = {
+    title: "תשלומים",
+    href: "/dashboard/payments",
+    icon: CreditCard,
+    badge: overduePayments > 0 ? overduePayments : undefined,
+  };
+  // החלפת פריט "תשלומים" הקבוע בגרסה עם ה-badge (עמיד לשינוי סדר financeItems).
+  const financeItemsWithBadge: NavItem[] = financeItems.map((it) =>
+    it.href === "/dashboard/payments" ? paymentsItem : it
+  );
+
   // קבוצת "תקשורת": הודעות (למזכיר/ה לפי canSendReminders) + צ׳אט צוות (חבר/ת קליניקה).
   const messagesItem: NavItem = {
     title: "הודעות ותזכורות",
@@ -255,7 +294,7 @@ export function AppSidebar({ user, initialViewMode = "personal" }: AppSidebarPro
           label: "כספים וגבייה",
           items: can(permissions.canViewPayments)
             ? [
-                { title: "תשלומים", href: "/dashboard/payments", icon: CreditCard },
+                paymentsItem,
                 { title: "קבלות", href: "/dashboard/receipts", icon: Receipt },
               ]
             : [],
@@ -284,7 +323,7 @@ export function AppSidebar({ user, initialViewMode = "personal" }: AppSidebarPro
     : [
         { key: "anchors", items: anchorItems },
         { key: "clinical", label: "ניהול קליני", items: clinicalFlowItems },
-        { key: "finance", label: "כספים וגבייה", items: financeItems },
+        { key: "finance", label: "כספים וגבייה", items: financeItemsWithBadge },
         {
           key: "communication",
           label: isChatMember ? "תקשורת וצוות" : "תקשורת",

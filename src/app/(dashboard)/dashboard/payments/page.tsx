@@ -36,7 +36,10 @@ import {
   ChevronLeft,
   Mail,
   Download,
-  TrendingUp
+  TrendingUp,
+  Sparkles,
+  Star,
+  BellOff
 } from "lucide-react";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
@@ -115,6 +118,8 @@ interface ClientDebt {
   creditBalance: number;
   unpaidSessionsCount: number;
   unpaidSessions: UnpaidSession[];
+  // דחיית התראת החוב ("אל תזכיר לי") — תאריך עתידי = נדחה; null/עבר = פעיל.
+  snoozeUntil?: Date | string | null;
 }
 
 type ViewMode = "summary" | "clients" | "clientDetail";
@@ -159,7 +164,12 @@ export default function PaymentsPage() {
     amount: number;
   } | null>(null);
   const [cardcomOpen, setCardcomOpen] = useState(false);
-  
+
+  // דחיית התראת חוב ("אל תזכיר לי") — בורר שבוע/חודש + דיאלוג תאריך מותאם.
+  const [snoozeDateClient, setSnoozeDateClient] = useState<ClientDebt | null>(null);
+  const [snoozeCustomDate, setSnoozeCustomDate] = useState<Date | undefined>(undefined);
+  const [snoozeBusy, setSnoozeBusy] = useState<string | null>(null);
+
   // שליחת מיילים
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isSendingAllEmails, setIsSendingAllEmails] = useState(false);
@@ -264,6 +274,54 @@ export default function PaymentsPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // ── דחיית התראת חוב ("אל תזכיר לי") ───────────────────────────────
+  // הדחייה מורידה את המטופל מהעיגול שבתפריט ומסמנת "נדחה עד..." בכרטיס, אבל
+  // משאירה אותו ברשימת החובות (הוא עדיין חייב). משותף ברמת המטופל בשרת.
+  const isSnoozed = (c: ClientDebt) =>
+    !!c.snoozeUntil && new Date(c.snoozeUntil).getTime() > Date.now();
+
+  const handleSnooze = async (clientId: string, until: Date) => {
+    setSnoozeBusy(clientId);
+    try {
+      const res = await fetch("/api/payments/snooze-debt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId, snoozeUntil: until.toISOString() }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("התראת החוב נדחתה");
+      await fetchData();
+    } catch {
+      toast.error("שגיאה בדחיית ההתראה");
+    } finally {
+      setSnoozeBusy(null);
+    }
+  };
+
+  const handleUnsnooze = async (clientId: string) => {
+    setSnoozeBusy(clientId);
+    try {
+      const res = await fetch("/api/payments/snooze-debt", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("הדחייה בוטלה");
+      await fetchData();
+    } catch {
+      toast.error("שגיאה בביטול הדחייה");
+    } finally {
+      setSnoozeBusy(null);
+    }
+  };
+
+  const snoozePreset = (clientId: string, days: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    void handleSnooze(clientId, d);
   };
 
   // ── עוזר: בניית query string להיסטוריה ──
@@ -483,12 +541,56 @@ export default function PaymentsPage() {
 
   // ========== תצוגת סיכום ראשית ==========
   if (viewMode === "summary") {
+    // ── מסך עידוד "סיימת את הגבייה" ──────────────────────────────────
+    // מוצג כשאין אף מטופל עם חוב פתוח, אבל יש עדות לפעילות גבייה (שולם החודש /
+    // קרדיט / כל אחד מ-6 החודשים האחרונים). הבדיקה על הפעילות מונעת מצב שבו
+    // חשבון חדש לגמרי — שמעולם לא גבה — יראה "כל הכבוד שסיימת" סתם.
+    const clientsWithDebtCount = clients.filter((c) => c.totalDebt > 0).length;
+    const hasCollectionActivity =
+      paidThisMonth > 0 ||
+      totalCredit > 0 ||
+      chartMonthlyData.some((m) => m.total > 0);
+    const showCelebration = clientsWithDebtCount === 0 && hasCollectionActivity;
+
     return (
       <div className="space-y-6 animate-fade-in">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">תשלומים וחובות</h1>
           <p className="text-muted-foreground">סיכום כללי של כל המטופלים</p>
         </div>
+
+        {/* מסך עידוד על סיום הגבייה — אין חובות פתוחים */}
+        {showCelebration && (
+          <Card className="relative overflow-hidden border-emerald-200 bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 shadow-sm animate-slide-in-up">
+            {/* עיגולי רקע מטושטשים לעומק */}
+            <div className="pointer-events-none absolute -top-12 -right-10 h-44 w-44 rounded-full bg-emerald-200/40 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-14 -left-10 h-48 w-48 rounded-full bg-teal-200/40 blur-3xl" />
+            {/* כוכבים מעטרים */}
+            <Star className="pointer-events-none absolute top-6 right-10 h-5 w-5 fill-amber-300 text-amber-300 opacity-70 animate-pulse-subtle" />
+            <Star className="pointer-events-none absolute bottom-8 left-12 h-4 w-4 fill-emerald-300 text-emerald-300 opacity-60 animate-pulse-subtle" />
+            <Star className="pointer-events-none absolute top-10 left-1/4 h-3 w-3 fill-teal-300 text-teal-300 opacity-50 animate-pulse-subtle" />
+
+            <CardContent className="relative px-6 py-10 text-center sm:py-12">
+              <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-green-500 shadow-lg shadow-emerald-200/60">
+                <Sparkles className="h-10 w-10 text-white" />
+              </div>
+              <h2 className="mb-3 text-2xl font-bold text-emerald-900 sm:text-3xl">
+                כל הכבוד! סיימת את הגבייה
+              </h2>
+              <p className="mx-auto max-w-md text-base leading-relaxed text-emerald-700 sm:text-lg">
+                כל המטופלים שילמו ואין חובות פתוחים. סיימת את החלק הכי פחות נעים —
+                מגיע לך להרגיש טוב עם זה. עבודה יפה ומסודרת!
+              </p>
+
+              {paidThisMonth > 0 && (
+                <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-white/70 px-4 py-2 text-sm font-semibold text-emerald-800 shadow-sm ring-1 ring-emerald-100">
+                  <TrendingUp className="h-4 w-4" />
+                  נגבו החודש ₪{paidThisMonth.toFixed(0)}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* 2 מלבנים ראשיים */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -742,12 +844,103 @@ export default function PaymentsPage() {
                             </div>
                           )}
                         </div>
+
+                        {/* דחיית התראה ("אל תזכיר לי") — לחוב בלבד. עוצר
+                            propagation כדי לא לפתוח את פירוט המטופל בלחיצה. */}
+                        {client.totalDebt > 0 && (
+                          <div
+                            className="mt-3 pt-3 border-t border-rose-100"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {isSnoozed(client) ? (
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <Clock className="h-3 w-3" />
+                                  נדחה עד {format(new Date(client.snoozeUntil as string | Date), "dd/MM")}
+                                </span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2 text-xs"
+                                  disabled={snoozeBusy === client.id}
+                                  onClick={() => handleUnsnooze(client.id)}
+                                >
+                                  בטל דחייה
+                                </Button>
+                              </div>
+                            ) : (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                                    disabled={snoozeBusy === client.id}
+                                  >
+                                    <BellOff className="h-3.5 w-3.5 ml-1" />
+                                    אל תזכיר לי
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuLabel>דחיית התראת החוב</DropdownMenuLabel>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => snoozePreset(client.id, 7)}>
+                                    לשבוע
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => snoozePreset(client.id, 30)}>
+                                    לחודש
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => {
+                                      setSnoozeCustomDate(undefined);
+                                      setSnoozeDateClient(client);
+                                    }}
+                                  >
+                                    עד תאריך...
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   );
                 })
               )}
             </div>
+
+            {/* דיאלוג: דחיית התראת חוב עד תאריך נבחר */}
+            <Dialog
+              open={!!snoozeDateClient}
+              onOpenChange={(o) => !o && setSnoozeDateClient(null)}
+            >
+              <DialogContent className="max-w-fit">
+                <DialogHeader>
+                  <DialogTitle>דחיית התראת החוב עד תאריך</DialogTitle>
+                </DialogHeader>
+                <Calendar
+                  mode="single"
+                  selected={snoozeCustomDate}
+                  onSelect={setSnoozeCustomDate}
+                  disabled={(date) => date <= new Date()}
+                  locale={he}
+                />
+                <Button
+                  disabled={!snoozeCustomDate || !snoozeDateClient}
+                  onClick={() => {
+                    if (snoozeCustomDate && snoozeDateClient) {
+                      void handleSnooze(snoozeDateClient.id, snoozeCustomDate);
+                      setSnoozeDateClient(null);
+                    }
+                  }}
+                >
+                  {snoozeCustomDate
+                    ? `דחה עד ${format(snoozeCustomDate, "dd/MM/yyyy")}`
+                    : "בחר/י תאריך"}
+                </Button>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           {/* היסטוריית תשלומים */}
