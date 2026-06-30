@@ -47,6 +47,7 @@ import {
   Clock,
   Receipt,
   ChevronDown,
+  UserMinus,
   type LucideIcon,
 } from "lucide-react";
 
@@ -152,6 +153,11 @@ export function AppSidebar({ user, initialViewMode = "personal" }: AppSidebarPro
   const isSecretaryUser =
     session?.user?.clinicRole === "SECRETARY" ||
     session?.user?.role === "CLINIC_SECRETARY";
+
+  // מטפל/ת חבר/ה בקליניקה (לא בעלים, לא מזכירה, לא עצמאי/ת) — רק הם/ן יכולים/ות
+  // ליזום תהליך עזיבה דרך /dashboard/clinic/leave (תואם לאכיפת השרת ב-route).
+  const isClinicTherapist = session?.user?.clinicRole === "THERAPIST";
+
   const { permissions, isLoading: permsLoading } = useMyPermissions();
 
   const [chatUnread, setChatUnread] = useState(0);
@@ -222,6 +228,14 @@ export function AppSidebar({ user, initialViewMode = "personal" }: AppSidebarPro
     ...(isChatMember ? [teamChatItem] : []),
   ];
 
+  // הגדרות מערכת + (למטפל/ת בקליניקה בלבד) קישור ליזום תהליך עזיבה.
+  const settingsGroupItems: NavItem[] = [
+    ...settingsItems,
+    ...(isClinicTherapist
+      ? [{ title: "עזיבת קליניקה", href: "/dashboard/clinic/leave", icon: UserMinus }]
+      : []),
+  ];
+
   // הקבוצות לפי תפקיד. סדר לפי העבודה היומיומית; קבלה/דוחות/הגדרות/תמיכה מקופלים.
   // קבוצה ריקה (כל פריטיה מסוננים בהרשאה) לא תרונדר.
   const navGroups: NavGroup[] = isSecretaryUser
@@ -269,7 +283,7 @@ export function AppSidebar({ user, initialViewMode = "personal" }: AppSidebarPro
         },
         { key: "intake", label: "קליטת מטופלים", collapsible: true, items: intakeItems },
         { key: "reports", label: "דוחות ובקרה", collapsible: true, items: reportsItems },
-        { key: "settings", label: "הגדרות מערכת", collapsible: true, items: settingsItems },
+        { key: "settings", label: "הגדרות מערכת", collapsible: true, items: settingsGroupItems },
         { key: "support", label: "תמיכה ושירות", items: supportItems },
       ];
 
