@@ -5,7 +5,7 @@
 // מטלה שבוצעה) + הודעות צ׳אט שלא נקראו. לחיצה על פריט מטלה נכנסת ישר למטלה
 // הספציפית (?task=) ומסמנת אותו כנקרא. מוסתר כשאין מה לטפל בו (alert, לא עוגן).
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -32,6 +32,7 @@ type InboxItem = {
 
 export function AttentionInbox() {
   const router = useRouter();
+  const pathname = usePathname();
   const [items, setItems] = useState<InboxItem[]>([]);
   const [chatUnread, setChatUnread] = useState(0);
   const [isShabbat, setIsShabbat] = useState(false);
@@ -88,11 +89,14 @@ export function AttentionInbox() {
       body: JSON.stringify({ notificationId: item.id }),
     }).catch(() => {});
     setItems((prev) => prev.filter((x) => x.id !== item.id));
-    router.push(
-      item.taskRef
-        ? `/clinic-admin/tasks?task=${item.taskRef}`
-        : "/clinic-admin/tasks"
-    );
+    // מסך ניהול המטלות קיים בשתי מעטפות (אותו רכיב TasksManager): /clinic-admin/
+    // tasks (מעטפת הניהול) ו-/dashboard/staff-tasks (מעטפת המזכיר/ה). שומרים את
+    // המשתמש/ת באותה מעטפת שבה הוא/היא נמצא/ת — מזכיר/ה בדשבורד לא נזרקת למסך
+    // ניהול הקליניקה (שנראה כמו חשבון המנהלת).
+    const tasksBase = pathname?.startsWith("/clinic-admin")
+      ? "/clinic-admin/tasks"
+      : "/dashboard/staff-tasks";
+    router.push(item.taskRef ? `${tasksBase}?task=${item.taskRef}` : tasksBase);
   };
 
   // בשבת/חג — מוסתר (עקבי עם PersonalTasksWidget). יופיע במוצ"ש.
@@ -101,6 +105,16 @@ export function AttentionInbox() {
   if (!loaded) return null;
   // אין מה לטפל בו — המלבן הוא התראה, לא עוגן קבוע; נשאר נקי.
   if (items.length === 0 && chatUnread === 0) return null;
+
+  // צ׳אט הצוות קיים בשתי מעטפות זהות: /dashboard/team-chat (מעטפת הדשבורד של
+  // המזכיר/ה) ו-/clinic-admin/team-chat (מעטפת ניהול הקליניקה). ה-widget הזה
+  // מוצג בשתיהן (SecretaryHome=ClinicFrontDesk). שומרים את המשתמש/ת באותה
+  // מעטפת שבה הוא/היא כבר נמצא/ת: מזכיר/ה בדשבורד לא "נזרקת" למסך ניהול
+  // הקליניקה (שנראה כמו חשבון המנהלת), ובעל/ת קליניקה ב-/clinic-admin לא
+  // נזרק/ת החוצה לדשבורד המטפל. עקבי עם קישור הצ׳אט בסיידבר (/dashboard/team-chat).
+  const teamChatHref = pathname?.startsWith("/clinic-admin")
+    ? "/clinic-admin/team-chat"
+    : "/dashboard/team-chat";
 
   return (
     <Card className="border-primary/30">
@@ -166,7 +180,7 @@ export function AttentionInbox() {
         {chatUnread > 0 && (
           <button
             type="button"
-            onClick={() => router.push("/clinic-admin/team-chat")}
+            onClick={() => router.push(teamChatHref)}
             className="w-full text-right flex items-center gap-2 rounded-md border px-3 py-2 hover:bg-muted/50 transition-colors"
           >
             <MessagesSquare className="h-4 w-4 text-primary shrink-0" />

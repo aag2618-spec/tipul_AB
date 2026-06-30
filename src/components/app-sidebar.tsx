@@ -223,9 +223,18 @@ export function AppSidebar({ user, initialViewMode = "personal" }: AppSidebarPro
     href: "/dashboard/communications",
     icon: Mail,
   };
+  // מזכיר/ה עם הרשאת הקצאת מטלות — מסך ניהול המטלות בתוך מעטפת הדשבורד שלה
+  // (אותו רכיב כמו /clinic-admin/tasks), כדי שלא תיזרק למעטפת ניהול הקליניקה.
+  // הבעלים/מנהלת מגיע/ה למטלות דרך "הקליניקה שלי" → /clinic-admin/tasks.
+  const staffTasksItem: NavItem = {
+    title: "מטלות צוות",
+    href: "/dashboard/staff-tasks",
+    icon: ClipboardList,
+  };
   const communicationItems: NavItem[] = [
     ...(isSecretaryUser ? (can(permissions.canSendReminders) ? [messagesItem] : []) : [messagesItem]),
     ...(isChatMember ? [teamChatItem] : []),
+    ...(isSecretaryUser && can(permissions.canAssignTasks) ? [staffTasksItem] : []),
   ];
 
   // הגדרות מערכת + (למטפל/ת בקליניקה בלבד) קישור ליזום תהליך עזיבה.
