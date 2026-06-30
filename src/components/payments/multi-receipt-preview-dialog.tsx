@@ -385,7 +385,12 @@ export function MultiReceiptPreviewDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 bg-gray-50 dark:bg-gray-900/40 overflow-y-auto p-4 space-y-6 min-h-[300px]">
+          {/* min-h-0 חיוני: בלעדיו flex-item עם תוכן גבוה לא מתכווץ, וכשגובה
+              הדיאלוג (max-h-[90vh]) קטן מהתוכן — הקבלות "גולשות" מתחת לקופסת
+              ה-DialogContent (overflow-hidden) אל אזור ה-overlay, שמיירט את
+              הקליקים והופך את כפתורי "פתח/הדפס" לבלתי-לחיצים. עם min-h-0
+              ה-overflow-y-auto נכנס לפעולה והקבלות נשארות בתוך הקופסה הלחיצה. */}
+          <div className="flex-1 min-h-0 bg-gray-50 dark:bg-gray-900/40 overflow-y-auto p-4 space-y-6">
             {loaded.map((item, idx) => renderScreenCard(item, idx))}
           </div>
 
