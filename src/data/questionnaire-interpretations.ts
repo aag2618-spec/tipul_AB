@@ -6,7 +6,12 @@
 //
 // ⚠️ זהו תוכן קליני לתמיכה בשיקול דעת — לא אבחנה. ראו DISCLAIMER במנוע.
 
-import type { RiskFlag } from "@/lib/questionnaire-interpreter";
+import type {
+  RiskFlag,
+  RichContext,
+  PatternInfo,
+  ComplementarySuggestion,
+} from "@/lib/questionnaire-interpreter";
 
 /** רמה עשירה אחת — מותאמת לפי תווית הטווח ו/או החומרה. */
 export interface RichLevel {
@@ -41,6 +46,17 @@ export interface InterpretationSpec {
   levels?: RichLevel[];
   clusters?: RichCluster[];
   criticalProtocol?: CriticalProtocol;
+  // --- שכבות העשרה (פרסונליזציה / כלים / מעקב) ---
+  /** זיהוי חתימה/דפוס המצוקה */
+  detectPattern?: (ctx: RichContext) => PatternInfo | null;
+  /** שאלות לבירור בפגישה הבאה */
+  questionsToAsk?: (ctx: RichContext) => string[];
+  /** יעדי טיפול מוצעים */
+  treatmentTargets?: (ctx: RichContext) => string[];
+  /** שאלונים משלימים מומלצים */
+  complementary?: (ctx: RichContext) => ComplementarySuggestion[];
+  /** כיווני אבחנה מבדלת לשלילה (לא אבחנה) */
+  differential?: (ctx: RichContext) => string[];
 }
 
 // עזר: התאמה לפי הכלה בתווית.
@@ -220,6 +236,176 @@ const BDI2: InterpretationSpec = {
           "בהתאם לצורך, ותיעוד מלא של ההערכה והפעולות.",
       },
     },
+  },
+
+  // --- חבילה 1: פרסונליזציה — זיהוי דפוס/חתימה ---
+  detectPattern: (ctx) => {
+    if (ctx.severity === "none") return null;
+    const g = ctx.item;
+    const cr = (k: string) =>
+      ctx.clusters.find((c) => c.key === k)?.ratio ?? 0;
+    const cog = cr("cognitive");
+    const som = cr("somatic");
+    const highCount = ctx.items.filter((it) => it.value >= 2).length;
+
+    // נסער-עצבני: אי-שקט (11) + עצבנות (17)
+    if (g(11) >= 2 && g(17) >= 2) {
+      return {
+        key: "agitated",
+        name: "דפוס נסער-עצבני",
+        description:
+          "בולטים אי-שקט פנימי ועצבנות — ייתכן רכיב חרדתי/אגיטטיבי בתוך הדיכאון. " +
+          "כדאי לבחון גם שינה, דריכות ותחושת מתח גופני.",
+      };
+    }
+
+    // קוגניטיבי: חוסר ערך (14) / אשמה (5) / פסימיות (2)
+    if (cog > som + 0.12 && (g(14) >= 2 || g(5) >= 2 || g(2) >= 2)) {
+      return {
+        key: "cognitive",
+        name: "דפוס קוגניטיבי",
+        description:
+          "המצוקה נשענת בעיקר על מחשבות שליליות על העצמי, אשמה ופסימיות לגבי העתיד. " +
+          "זהו מוקד טבעי להתערבות קוגניטיבית.",
+      };
+    }
+
+    // מלנכולי-גופני: אנהדוניה (4) / שינה (16) + תיאבון (18) / אנרגיה (15)
+    const melancholic =
+      g(4) >= 2 || g(16) + g(18) >= 4 || (som >= 0.5 && g(15) >= 2);
+    if (melancholic && som >= cog) {
+      return {
+        key: "melancholic",
+        name: "דפוס מלנכולי-גופני",
+        description:
+          "בולטים תסמינים גופניים-ותיקיים: אובדן הנאה, שינויי שינה ותיאבון וירידה באנרגיה. " +
+          "כדאי לשלול רקע רפואי ולשקול הפעלה התנהגותית והיגיינת שינה.",
+      };
+    }
+
+    if (highCount > 0 && highCount <= 2) {
+      return {
+        key: "concentrated",
+        name: "מצוקה ממוקדת",
+        description:
+          "המצוקה מרוכזת במעט פריטים בעוצמה גבוהה, ולא מפושטת — כדאי למקד בהם את ההתערבות.",
+      };
+    }
+
+    return {
+      key: "mixed",
+      name: "תמונה מעורבת",
+      description:
+        "המצוקה מפושטת על פני תחומים רבים, ללא מוקד יחיד בולט — כדאי לבנות סדר עדיפויות יחד עם המטופל.",
+    };
+  },
+
+  // --- חבילה 2: שאלות לבירור בפגישה הבאה ---
+  questionsToAsk: (ctx) => {
+    const g = ctx.item;
+    const q: string[] = [];
+    if (ctx.hasRisk)
+      q.push(
+        "לברר ישירות את המחשבות האובדניות: תדירות, תכנית, אמצעים זמינים וגורמים מגנים."
+      );
+    if (g(16) >= 2)
+      q.push(
+        "על השינה — קושי להירדם, יקיצות מרובות, או שינה מרובה מדי? וכמה שעות בפועל?"
+      );
+    if (g(4) >= 2 || g(12) >= 2)
+      q.push(
+        "ירידת ההנאה/העניין — בכל התחומים או בחלקם? נשארה פעילות שעדיין מספקת?"
+      );
+    if (g(18) >= 2)
+      q.push("שינוי בתיאבון או במשקל בתקופה האחרונה?");
+    if (g(14) >= 2 || g(5) >= 2)
+      q.push(
+        "המחשבות על עצמך — אשמה ספציפית או תחושת חוסר-ערך כללית? ומאז מתי?"
+      );
+    if (g(19) >= 2)
+      q.push("הקושי בריכוז — משפיע על עבודה/לימודים/תפקוד יומיומי?");
+    if (g(2) >= 2)
+      q.push("המבט על העתיד — עד כמה תחושת חוסר-התקווה יציבה לאורך היום?");
+    q.push(
+      "מתי התחיל המצב, והאם היה אירוע או שינוי חיים סמוך להתחלה?"
+    );
+    return q.slice(0, 6);
+  },
+
+  // --- חבילה 2: יעדי טיפול לפי הדפוס הדומיננטי ---
+  treatmentTargets: (ctx) => {
+    const g = ctx.item;
+    const cr = (k: string) =>
+      ctx.clusters.find((c) => c.key === k)?.ratio ?? 0;
+    const cog = cr("cognitive");
+    const som = cr("somatic");
+    const t: string[] = [];
+    if (ctx.hasRisk)
+      t.push(
+        "בעדיפות ראשונה: בניית תכנית בטיחות ועיגון רשת תמיכה זמינה."
+      );
+    if (som >= cog) {
+      t.push("הפעלה התנהגותית: תזמון הדרגתי של פעילויות מהנות ומספקות.");
+      if (g(16) >= 2)
+        t.push("שיפור היגיינת שינה וביסוס שגרת יום יציבה.");
+    }
+    if (cog >= som - 0.05)
+      t.push(
+        "עבודה קוגניטיבית: זיהוי ואתגור מחשבות אוטומטיות שליליות (חוסר ערך / אשמה / פסימיות)."
+      );
+    if (g(4) >= 2 || g(12) >= 2)
+      t.push("התמודדות עם אנהדוניה דרך חוויות שליטה והנאה מדורגות.");
+    if (ctx.severity === "high")
+      t.push(
+        "שקילת התייעצות / הפניה להערכה פסיכיאטרית במקביל לטיפול הפסיכולוגי."
+      );
+    if (ctx.severity !== "none")
+      t.push("מבנה שגרה יומית והפחתת הימנעות.");
+    return [...new Set(t)].slice(0, 6);
+  },
+
+  // --- חבילה 3: שאלונים משלימים מומלצים ---
+  complementary: (ctx) => {
+    if (ctx.severity === "none") return [];
+    const g = ctx.item;
+    const c: ComplementarySuggestion[] = [];
+    if (ctx.hasRisk || g(2) >= 2)
+      c.push({
+        code: "BHS",
+        name: "מדד חוסר התקווה (Beck Hopelessness Scale)",
+        reason:
+          "חוסר-תקווה הוא מנבא סיכון מרכזי — מומלץ לכמת אותו בנפרד.",
+      });
+    c.push({
+      code: "MDQ",
+      name: "שאלון הפרעות מצב רוח (MDQ)",
+      reason:
+        "סינון רכיב דו-קוטבי לפני קביעת כיוון טיפולי/תרופתי.",
+    });
+    if (g(11) >= 2 || g(17) >= 2)
+      c.push({
+        code: "GAD7",
+        name: "מדד חרדה כללית (GAD-7)",
+        reason: "בלטו אי-שקט/עצבנות — כדאי להעריך חרדה נלווית.",
+      });
+    c.push({
+      code: "PHQ9",
+      name: "שאלון בריאות המטופל (PHQ-9)",
+      reason:
+        "כלי קצר למעקב תכוף אחר מגמת הדיכאון בין המפגשים.",
+    });
+    return c.slice(0, 4);
+  },
+
+  // --- חבילה 3: כיווני אבחנה מבדלת לשלילה (לא אבחנה) ---
+  differential: (ctx) => {
+    if (ctx.severity === "none") return [];
+    return [
+      "לשלול גורמים רפואיים שעלולים לחקות דיכאון (תת-פעילות בלוטת התריס, אנמיה, חוסר ויטמין D, תופעות לוואי של תרופות) — במיוחד כשהתמונה גופנית.",
+      "לברר רקע של תקופות מצב-רוח מרומם/אנרגטי או אימפולסיביות — לאבחנה מבדלת מול הפרעה דו-קוטבית.",
+      "להבחין בין דיכאון לבין תגובת אבל או הפרעת הסתגלות למצב חיים מתמשך.",
+      "לבדוק שימוש באלכוהול/חומרים שעלול לתרום לתמונה הדיכאונית.",
+    ];
   },
 };
 

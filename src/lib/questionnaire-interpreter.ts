@@ -67,6 +67,85 @@ export interface Interpretation {
   disclaimer: string;
   /** שקיפות: מאיפה הגיע הניתוח */
   source: "rich" | "auto";
+
+  // --- שכבות העשרה (מאוכלסות רק כשקיים InterpretationSpec, כרגע BDI2) ---
+  /** מוקדי המצוקה הבולטים — הפריטים שסומנו הכי גבוה */
+  topItems?: ScoredItem[];
+  /** אזורי חוסן — פריטים שסומנו 0 */
+  strengths?: ScoredItem[];
+  /** חתימה/דפוס המצוקה */
+  pattern?: PatternInfo | null;
+  /** שאלות מומלצות לבירור בפגישה הבאה */
+  questionsToAsk?: string[];
+  /** יעדי טיפול מוצעים */
+  treatmentTargets?: string[];
+  /** סיכום קליני נרטיבי (פסקה לרשומה) */
+  narrative?: string;
+  /** שינוי לעומת מדידה קודמת */
+  change?: ChangeInfo;
+  /** שאלונים משלימים מומלצים */
+  complementary?: ComplementarySuggestion[];
+  /** כיווני אבחנה מבדלת לשלילה (לא אבחנה) */
+  differential?: string[];
+}
+
+export interface ScoredItem {
+  id: number;
+  title: string;
+  value: number;
+  max: number;
+  /** טקסט האפשרות שנבחרה */
+  text?: string;
+}
+
+export interface PatternInfo {
+  key: string;
+  name: string;
+  description: string;
+}
+
+export interface ComplementarySuggestion {
+  code: string;
+  name: string;
+  reason: string;
+}
+
+export interface ChangeInfo {
+  previousScore: number;
+  previousDate?: string | null;
+  delta: number;
+  direction: "improved" | "worsened" | "stable";
+  magnitude: "קל" | "בינוני" | "משמעותי";
+  note: string;
+}
+
+/** הקשר מחושב המועבר לפונקציות התוכן העשיר. */
+export interface RichContext {
+  domain: Domain;
+  totalScore: number;
+  maxScore: number;
+  percentage: number;
+  level: LevelInfo | null;
+  severity: Severity;
+  clusters: Array<{
+    key: string;
+    name: string;
+    score: number;
+    max: number;
+    ratio: number;
+  }>;
+  items: ScoredItem[];
+  topItems: ScoredItem[];
+  strengths: ScoredItem[];
+  hasRisk: boolean;
+  change?: ChangeInfo;
+  /** ערך פריט לפי id (0 אם לא נענה) */
+  item: (id: number) => number;
+}
+
+export interface InterpretOptions {
+  /** מדידה קודמת של אותו שאלון לאותו מטופל — להשוואת שינוי */
+  previous?: { totalScore?: number | null; completedAt?: string | null } | null;
 }
 
 export interface DomainSummary {
@@ -450,7 +529,8 @@ function autoRiskFlags(
 
 export function interpretResponse(
   template: TemplateLike,
-  response: ResponseLike
+  response: ResponseLike,
+  opts?: InterpretOptions
 ): Interpretation {
   const domain = domainForTemplate(template);
   const total = resolveTotal(template, response);
@@ -522,9 +602,17 @@ export function interpretResponse(
       base.source = "rich";
     }
     // אשכולות מחושבים מהתשובות הגולמיות (למשל קוגניטיבי מול סומטי ב-BDI2).
+    const clusterCtx: RichContext["clusters"] = [];
     if (spec.clusters) {
       for (const c of spec.clusters) {
         const { score, max } = clusterScore(c.itemIds, template, response);
+        clusterCtx.push({
+          key: c.key,
+          name: c.name,
+          score,
+          max,
+          ratio: max > 0 ? score / max : 0,
+        });
         base.subscales.push({
           key: c.key,
           name: c.name,
@@ -534,9 +622,148 @@ export function interpretResponse(
         });
       }
     }
+
+    // --- שכבות העשרה (פרסונליזציה / כלים / מעקב) ---
+    const items = buildScoredItems(template, response);
+    const topItems = pickTopItems(items);
+    const strengths = pickStrengths(items);
+    const hasRisk = riskFlags.length > 0;
+    const change = computeChange(total, maxScore, domain, opts?.previous);
+
+    const ctx: RichContext = {
+      domain,
+      totalScore: total,
+      maxScore,
+      percentage,
+      level,
+      severity,
+      clusters: clusterCtx,
+      items,
+      topItems,
+      strengths,
+      hasRisk,
+      change,
+      item: (id: number) => items.find((it) => it.id === id)?.value ?? 0,
+    };
+
+    base.topItems = topItems;
+    base.strengths = strengths;
+    base.change = change;
+    base.pattern = spec.detectPattern ? spec.detectPattern(ctx) : null;
+    base.questionsToAsk = spec.questionsToAsk ? spec.questionsToAsk(ctx) : [];
+    base.treatmentTargets = spec.treatmentTargets
+      ? spec.treatmentTargets(ctx)
+      : [];
+    base.complementary = spec.complementary ? spec.complementary(ctx) : [];
+    base.differential = spec.differential ? spec.differential(ctx) : [];
+    base.narrative = buildNarrative(base, ctx);
   }
 
   return base;
+}
+
+// פריטים מנוקדים מהתשובות הגולמיות (רק פריטים בעלי אפשרויות מנוקדות).
+function buildScoredItems(
+  template: TemplateLike,
+  response: ResponseLike
+): ScoredItem[] {
+  const answers = response.answers || [];
+  const out: ScoredItem[] = [];
+  template.questions.forEach((q, idx) => {
+    if (!q.options || q.options.length === 0) return;
+    const a = answers[idx];
+    const value = itemPoints(a);
+    const max = Math.max(...q.options.map((o) => o.score ?? o.value ?? 0));
+    if (!Number.isFinite(max) || max <= 0) return;
+    out.push({
+      id: q.id,
+      title: q.title || `שאלה ${q.id}`,
+      value,
+      max,
+      text: a?.text,
+    });
+  });
+  return out;
+}
+
+// מוקדי מצוקה — הפריטים הגבוהים. מעדיף ערך מוחלט גבוה, עד 4.
+function pickTopItems(items: ScoredItem[]): ScoredItem[] {
+  const sorted = [...items].sort(
+    (a, b) => b.value / b.max - a.value / a.max || b.value - a.value
+  );
+  const strong = sorted.filter((it) => it.value >= 2);
+  const pool = strong.length > 0 ? strong : sorted.filter((it) => it.value >= 1);
+  return pool.slice(0, 4);
+}
+
+// אזורי חוסן — פריטים שסומנו 0 (עד 4).
+function pickStrengths(items: ScoredItem[]): ScoredItem[] {
+  return items.filter((it) => it.value === 0).slice(0, 4);
+}
+
+// שינוי לעומת מדידה קודמת. סף יחסי ל-maxScore כדי להכליל בין כלים.
+function computeChange(
+  total: number,
+  maxScore: number,
+  domain: Domain,
+  previous?: InterpretOptions["previous"]
+): ChangeInfo | undefined {
+  if (!previous || typeof previous.totalScore !== "number") return undefined;
+  const prev = previous.totalScore;
+  const delta = total - prev;
+  const absRatio = maxScore > 0 ? Math.abs(delta) / maxScore : 0;
+  const betterWhenUp = HIGHER_IS_BETTER.has(domain);
+  const improved = betterWhenUp ? delta > 0 : delta < 0;
+
+  let direction: ChangeInfo["direction"];
+  let magnitude: ChangeInfo["magnitude"];
+  if (absRatio < 0.05 || delta === 0) {
+    direction = "stable";
+    magnitude = "קל";
+  } else {
+    direction = improved ? "improved" : "worsened";
+    magnitude = absRatio >= 0.15 ? "משמעותי" : absRatio >= 0.08 ? "בינוני" : "קל";
+  }
+
+  const word =
+    direction === "stable"
+      ? "ללא שינוי מהותי"
+      : direction === "improved"
+        ? `שיפור ${magnitude}`
+        : `החמרה ${magnitude}`;
+  const dateStr = previous.completedAt
+    ? ` (${new Date(previous.completedAt).toLocaleDateString("he-IL")})`
+    : "";
+  const note =
+    direction === "stable"
+      ? `התוצאה יציבה לעומת המדידה הקודמת (${prev}${dateStr}).`
+      : `${word} של ${Math.abs(delta)} נק' לעומת המדידה הקודמת (${prev}${dateStr}).`;
+
+  return { previousScore: prev, previousDate: previous.completedAt, delta, direction, magnitude, note };
+}
+
+// סיכום קליני נרטיבי — פסקה לרשומה, מורכבת מהממצאים המובנים.
+function buildNarrative(base: Interpretation, ctx: RichContext): string {
+  const parts: string[] = [];
+  const lvl = ctx.level?.label || SEVERITY_LABEL[ctx.severity];
+  parts.push(`התמונה מהשאלון "${base.title}": ${lvl} (ציון ${ctx.totalScore}/${ctx.maxScore})`);
+
+  const dom = [...ctx.clusters].sort((a, b) => b.ratio - a.ratio)[0];
+  if (dom && dom.ratio >= 0.34) {
+    parts.push(`עם דגש ${dom.name.replace("אשכול ", "")}`);
+  }
+  if (base.pattern) parts.push(`דפוס בולט: ${base.pattern.name}`);
+  if (ctx.topItems.length) {
+    parts.push(`מוקדי המצוקה: ${ctx.topItems.map((t) => t.title).join(", ")}`);
+  }
+  if (ctx.hasRisk) parts.push("דווח פריט סיכון המצריך התייחסות מפורשת");
+  if (ctx.change && ctx.change.direction !== "stable") {
+    parts.push(ctx.change.note.replace(/\.$/, ""));
+  }
+  const rec = base.recommendations[0];
+  let text = parts.join(", ") + ".";
+  if (rec) text += ` ${rec}`;
+  return text;
 }
 
 function buildHeadline(

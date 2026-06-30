@@ -109,6 +109,138 @@ describe("BDI2 — אשכולות קוגניטיבי/סומטי", () => {
   });
 });
 
+// בונה תשובות BDI2 ממפת id→ערך.
+function bdiFrom(map: Record<number, number>): ResponseLike["answers"] {
+  return BDI2.questions.map((q) => ({ value: map[q.id] ?? 0 }));
+}
+
+describe("BDI2 — העשרה: פרסונליזציה", () => {
+  it("מוקדי מצוקה — הפריטים הגבוהים, ממוינים, עד 4", () => {
+    const r = interpretResponse(BDI2, {
+      answers: bdiFrom({ 4: 3, 16: 3, 14: 2, 1: 2, 20: 1 }),
+    });
+    expect(r.topItems && r.topItems.length).toBeLessThanOrEqual(4);
+    expect(r.topItems?.[0].value).toBe(3);
+    const titles = r.topItems?.map((t) => t.title) || [];
+    expect(titles).toContain("אובדן הנאה");
+  });
+
+  it("אזורי חוסן — פריטים שסומנו 0", () => {
+    const r = interpretResponse(BDI2, { answers: bdiFrom({ 4: 3 }) });
+    expect(r.strengths && r.strengths.length).toBeGreaterThan(0);
+    expect(r.strengths?.every((s) => true)).toBe(true);
+  });
+
+  it("דפוס מלנכולי-גופני כשהסומטי דומיננטי", () => {
+    const r = interpretResponse(BDI2, {
+      answers: bdiFrom({ 4: 3, 16: 3, 18: 3, 15: 3, 20: 2, 1: 2, 10: 2, 12: 2 }),
+    });
+    expect(r.pattern?.key).toBe("melancholic");
+  });
+
+  it("דפוס קוגניטיבי כשהמחשבות השליליות דומיננטיות", () => {
+    const r = interpretResponse(BDI2, {
+      answers: bdiFrom({ 2: 3, 5: 3, 7: 3, 8: 3, 14: 3, 3: 3, 6: 2 }),
+    });
+    expect(r.pattern?.key).toBe("cognitive");
+  });
+
+  it("דפוס נסער-עצבני כשאי-שקט ועצבנות גבוהים", () => {
+    const r = interpretResponse(BDI2, {
+      answers: bdiFrom({ 11: 3, 17: 3, 1: 3, 4: 3, 15: 3, 16: 3, 20: 2 }),
+    });
+    expect(r.pattern?.key).toBe("agitated");
+  });
+
+  it("אין דפוס ברמה מינימלית", () => {
+    const r = interpretResponse(BDI2, { totalScore: 5 });
+    expect(r.pattern).toBeNull();
+  });
+});
+
+describe("BDI2 — העשרה: כלים מעשיים", () => {
+  it("שאלת סיכון מופיעה ראשונה כשפריט 9 מסומן", () => {
+    const r = interpretResponse(BDI2, { answers: bdiFrom({ 9: 2 }) });
+    expect(r.questionsToAsk?.[0]).toContain("אובדניות");
+  });
+
+  it("שאלת שינה מופיעה כשפריט השינה גבוה", () => {
+    const r = interpretResponse(BDI2, { answers: bdiFrom({ 16: 3 }) });
+    expect(r.questionsToAsk?.some((q) => q.includes("שינה"))).toBe(true);
+  });
+
+  it("יעדי טיפול לא ריקים ברמה בינונית", () => {
+    const r = interpretResponse(BDI2, { totalScore: 24 });
+    expect(r.treatmentTargets && r.treatmentTargets.length).toBeGreaterThan(0);
+  });
+
+  it("סיכום נרטיבי כולל את שם השאלון", () => {
+    const r = interpretResponse(BDI2, { totalScore: 24 });
+    expect(r.narrative).toContain("מדד דיכאון בק");
+  });
+});
+
+describe("BDI2 — העשרה: מעקב והקשר", () => {
+  it("שאלונים משלימים — MDQ תמיד, BHS כשיש סיכון", () => {
+    // ציון 18 (קל) + פריט 9 (סיכון) + פסימיות גבוהה → BHS+MDQ.
+    const r = interpretResponse(BDI2, {
+      answers: bdiFrom({ 9: 2, 2: 3, 1: 2, 4: 2, 16: 3, 20: 2, 10: 2, 12: 2 }),
+    });
+    const codes = r.complementary?.map((c) => c.code) || [];
+    expect(codes).toContain("MDQ");
+    expect(codes).toContain("BHS");
+  });
+
+  it("אבחנה מבדלת ריקה ברמה מינימלית, מלאה ברמה בינונית", () => {
+    expect(interpretResponse(BDI2, { totalScore: 5 }).differential?.length).toBe(0);
+    expect(
+      interpretResponse(BDI2, { totalScore: 24 }).differential?.length
+    ).toBeGreaterThan(0);
+  });
+
+  it("שינוי — שיפור משמעותי לעומת מדידה קודמת", () => {
+    const r = interpretResponse(
+      BDI2,
+      { totalScore: 20 },
+      { previous: { totalScore: 35, completedAt: "2025-01-01" } }
+    );
+    expect(r.change?.direction).toBe("improved");
+    expect(r.change?.delta).toBe(-15);
+    expect(r.change?.magnitude).toBe("משמעותי");
+  });
+
+  it("שינוי — החמרה כשהציון עלה", () => {
+    const r = interpretResponse(
+      BDI2,
+      { totalScore: 40 },
+      { previous: { totalScore: 20 } }
+    );
+    expect(r.change?.direction).toBe("worsened");
+  });
+
+  it("שינוי — יציב כשההפרש זניח", () => {
+    const r = interpretResponse(
+      BDI2,
+      { totalScore: 21 },
+      { previous: { totalScore: 20 } }
+    );
+    expect(r.change?.direction).toBe("stable");
+  });
+});
+
+describe("ההעשרה מגודרת ל-BDI2 בלבד", () => {
+  it("שאלון ללא spec (PHQ9) לא מקבל שדות העשרה", () => {
+    const r = interpretResponse(byCode("PHQ9"), { totalScore: 12 });
+    expect(r.topItems).toBeUndefined();
+    expect(r.narrative).toBeUndefined();
+    expect(r.pattern).toBeUndefined();
+    expect(r.differential).toBeUndefined();
+    // אך הניתוח הבסיסי עדיין מלא:
+    expect(r.recommendations.length).toBeGreaterThan(0);
+    expect(r.disclaimer).toBe(DISCLAIMER);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 2. כיסוי כל השאלונים — אף רמה לא נשארת בלי ניתוח
 // ---------------------------------------------------------------------------

@@ -21,6 +21,17 @@ import {
   CalendarClock,
   Layers,
   Stethoscope,
+  TrendingDown,
+  TrendingUp,
+  Minus,
+  Fingerprint,
+  Flame,
+  Sparkles,
+  HelpCircle,
+  Target,
+  ClipboardList,
+  FileSearch,
+  FileText,
 } from "lucide-react";
 import type {
   Interpretation,
@@ -71,6 +82,58 @@ function RiskFlagCard({ flag }: { flag: RiskFlag }) {
   );
 }
 
+// באנר שינוי לעומת מדידה קודמת
+function ChangeBanner({ change }: { change: NonNullable<Interpretation["change"]> }) {
+  const improved = change.direction === "improved";
+  const worsened = change.direction === "worsened";
+  const Icon = improved ? TrendingDown : worsened ? TrendingUp : Minus;
+  const cls = improved
+    ? "border-green-500 bg-green-50 dark:bg-green-950 text-green-800 dark:text-green-200"
+    : worsened
+      ? "border-red-400 bg-red-50 dark:bg-red-950 text-red-800 dark:text-red-200"
+      : "border-muted bg-muted/40";
+  return (
+    <div className={`flex items-center gap-2 rounded-lg border p-3 text-sm ${cls}`}>
+      <Icon className="h-5 w-5 shrink-0" />
+      <span>{change.note}</span>
+    </div>
+  );
+}
+
+function ListCard({
+  icon,
+  title,
+  items,
+  color,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  items: string[];
+  color: string;
+}) {
+  if (!items || items.length === 0) return null;
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          {icon}
+          {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ul className="space-y-1.5 text-sm">
+          {items.map((t, idx) => (
+            <li key={idx} className="flex gap-2">
+              <span className={`${color} shrink-0`}>•</span>
+              <span>{t}</span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function AnalysisView({
   interpretation,
 }: {
@@ -89,6 +152,9 @@ export function AnalysisView({
           ))}
         </div>
       )}
+
+      {/* שינוי לעומת מדידה קודמת */}
+      {i.change && <ChangeBanner change={i.change} />}
 
       {/* רמה כוללת */}
       <Card>
@@ -120,6 +186,19 @@ export function AnalysisView({
           <Progress value={i.percentage} className={`h-2.5 ${sev.bar}`} />
           <p className="text-muted-foreground">{i.headline}</p>
 
+          {/* דפוס / חתימה */}
+          {i.pattern && (
+            <div className="flex items-start gap-2 rounded-lg border bg-muted/40 p-3">
+              <Fingerprint className="h-5 w-5 mt-0.5 shrink-0 text-purple-600" />
+              <div>
+                <p className="font-medium text-sm">{i.pattern.name}</p>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  {i.pattern.description}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* פסקאות משמעות קלינית */}
           {i.richBody && i.richBody.length > 0 && (
             <div className="space-y-2 pt-1">
@@ -133,27 +212,96 @@ export function AnalysisView({
         </CardContent>
       </Card>
 
-      {/* על מה לשים לב */}
-      {i.watchFor.length > 0 && (
-        <Card>
+      {/* סיכום קליני נרטיבי */}
+      {i.narrative && (
+        <Card className="border-teal-200 dark:border-teal-900">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
-              <Eye className="h-5 w-5 text-amber-600" />
-              על מה לשים לב
+              <FileText className="h-5 w-5 text-teal-600" />
+              סיכום קליני
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ul className="space-y-1.5 text-sm">
-              {i.watchFor.map((w, idx) => (
-                <li key={idx} className="flex gap-2">
-                  <span className="text-amber-600 shrink-0">•</span>
-                  <span>{w}</span>
-                </li>
-              ))}
-            </ul>
+            <p className="text-sm leading-relaxed">{i.narrative}</p>
           </CardContent>
         </Card>
       )}
+
+      {/* מוקדי מצוקה ואזורי חוסן */}
+      {((i.topItems && i.topItems.length > 0) ||
+        (i.strengths && i.strengths.length > 0)) && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {i.topItems && i.topItems.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Flame className="h-5 w-5 text-red-500" />
+                  מוקדי המצוקה הבולטים
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2 text-sm">
+                  {i.topItems.map((t) => (
+                    <li
+                      key={t.id}
+                      className="flex items-center justify-between gap-2"
+                    >
+                      <span>{t.title}</span>
+                      <Badge variant="outline" className="shrink-0">
+                        {t.value}/{t.max}
+                      </Badge>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+          {i.strengths && i.strengths.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-green-600" />
+                  אזורי חוסן
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-1.5 text-sm">
+                  {i.strengths.map((s) => (
+                    <li key={s.id} className="flex gap-2">
+                      <span className="text-green-600 shrink-0">•</span>
+                      <span>{s.title}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* על מה לשים לב */}
+      <ListCard
+        icon={<Eye className="h-5 w-5 text-amber-600" />}
+        title="על מה לשים לב"
+        items={i.watchFor}
+        color="text-amber-600"
+      />
+
+      {/* שאלות לבירור בפגישה הבאה */}
+      <ListCard
+        icon={<HelpCircle className="h-5 w-5 text-blue-600" />}
+        title="שאלות לבירור בפגישה הבאה"
+        items={i.questionsToAsk || []}
+        color="text-blue-600"
+      />
+
+      {/* יעדי טיפול */}
+      <ListCard
+        icon={<Target className="h-5 w-5 text-rose-600" />}
+        title="יעדי טיפול מוצעים"
+        items={i.treatmentTargets || []}
+        color="text-rose-600"
+      />
 
       {/* המלצות */}
       {i.recommendations.length > 0 && (
@@ -210,6 +358,48 @@ export function AnalysisView({
                 )}
               </div>
             ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* שאלונים משלימים מומלצים */}
+      {i.complementary && i.complementary.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <ClipboardList className="h-5 w-5 text-cyan-600" />
+              שאלונים משלימים מומלצים
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {i.complementary.map((c) => (
+              <div key={c.code} className="text-sm">
+                <span className="font-medium">{c.name}</span>
+                <span className="text-muted-foreground"> — {c.reason}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* אבחנה מבדלת */}
+      {i.differential && i.differential.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileSearch className="h-5 w-5 text-slate-600" />
+              לבדיקה / לשלילה (לא אבחנה)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-1.5 text-sm">
+              {i.differential.map((d, idx) => (
+                <li key={idx} className="flex gap-2">
+                  <span className="text-slate-500 shrink-0">•</span>
+                  <span>{d}</span>
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
       )}

@@ -77,6 +77,11 @@ export default function QuestionnaireResultsPage() {
   const [loading, setLoading] = useState(true);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(false);
+  // מדידה קודמת של אותו שאלון לאותו מטופל — להשוואת שינוי לאורך זמן.
+  const [previous, setPrevious] = useState<{
+    totalScore: number;
+    completedAt: string | null;
+  } | null>(null);
 
   useEffect(() => {
     fetchResponse();
@@ -92,9 +97,10 @@ export default function QuestionnaireResultsPage() {
     if (!response) return null;
     return interpretResponse(
       response.template as unknown as TemplateLike,
-      response as unknown as ResponseLike
+      response as unknown as ResponseLike,
+      previous ? { previous } : undefined
     );
-  }, [response]);
+  }, [response, previous]);
 
   // לחיצה על "נתח": מציג את הניתוח ומסמן ANALYZED (best-effort).
   const handleAnalyze = async () => {
@@ -119,6 +125,7 @@ export default function QuestionnaireResultsPage() {
       if (res.ok) {
         const data = await res.json();
         setResponse(data);
+        fetchPrevious(data); // מדידה קודמת להשוואה (לא חוסם)
       } else {
         toast.error("שאלון לא נמצא");
         router.push("/dashboard/questionnaires");
@@ -128,6 +135,49 @@ export default function QuestionnaireResultsPage() {
       toast.error("שגיאה בטעינת השאלון");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // מאתר את המדידה הקודמת ביותר של אותו שאלון לאותו מטופל (מוקדמת מהנוכחית).
+  const fetchPrevious = async (current: Response) => {
+    try {
+      const res = await fetch(
+        `/api/questionnaires/responses?clientId=${current.client.id}`
+      );
+      if (!res.ok) return;
+      const list = (await res.json()) as Array<{
+        id: string;
+        status: string;
+        totalScore: number | null;
+        completedAt: string | null;
+        template?: { code?: string };
+      }>;
+      const currentTime = current.completedAt
+        ? new Date(current.completedAt).getTime()
+        : Date.now();
+      const prior = list
+        .filter(
+          (r) =>
+            r.id !== current.id &&
+            r.template?.code === current.template.code &&
+            (r.status === "COMPLETED" || r.status === "ANALYZED") &&
+            typeof r.totalScore === "number" &&
+            r.completedAt !== null &&
+            new Date(r.completedAt).getTime() < currentTime
+        )
+        .sort(
+          (a, b) =>
+            new Date(b.completedAt || 0).getTime() -
+            new Date(a.completedAt || 0).getTime()
+        );
+      if (prior.length > 0) {
+        setPrevious({
+          totalScore: prior[0].totalScore as number,
+          completedAt: prior[0].completedAt,
+        });
+      }
+    } catch {
+      // לא חוסם — השוואת השינוי היא תוספת בלבד.
     }
   };
 
