@@ -6,14 +6,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
+import {
   FileText,
   Brain,
   Eye,
   ClipboardList,
   Plus,
   Activity,
-  Search
+  Search,
+  Send,
+  Copy,
+  Loader2
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -24,6 +27,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner";
 
 interface QuestionnaireTemplate {
   id: string;
@@ -104,6 +115,10 @@ export default function QuestionnairesPage() {
   const [clientSearch, setClientSearch] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  // שליחת קישור מילוי-עצמי למטופל (רק לשאלוני SELF_REPORT)
+  const [sendChannel, setSendChannel] = useState<"link" | "sms" | "email" | "both">("link");
+  const [sendingLink, setSendingLink] = useState(false);
+  const [sentUrl, setSentUrl] = useState("");
 
   useEffect(() => {
     fetchData();
@@ -157,6 +172,57 @@ export default function QuestionnairesPage() {
       console.error("Error creating questionnaire:", error);
     } finally {
       setCreating(false);
+    }
+  };
+
+  // שליחת קישור מילוי-עצמי למטופל (BDI2/GAD-7/AQ וכו'). השרת מאמת SELF_REPORT.
+  const sendSelfReportLink = async () => {
+    if (!selectedTemplate || !selectedClient) return;
+    setSendingLink(true);
+    setSentUrl("");
+    try {
+      const res = await fetch("/api/questionnaire-invites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: selectedClient,
+          code: selectedTemplate.code,
+          channel: sendChannel,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.message || "שגיאה ביצירת הקישור");
+        return;
+      }
+      if (sendChannel === "link") {
+        setSentUrl(data.url || "");
+        toast.success("הקישור נוצר — אפשר להעתיק ולשלוח");
+      } else {
+        const sentSms = sendChannel !== "email" && data.results?.sms;
+        const sentEmail = sendChannel !== "sms" && data.results?.email;
+        if (sentSms || sentEmail) {
+          toast.success("הקישור נשלח למטופל/ת");
+          setIsDialogOpen(false);
+        } else {
+          toast.error(
+            "לא נשלח — ייתכן שלמטופל אין טלפון/מייל. נסה/י 'העתקת קישור'."
+          );
+        }
+      }
+    } catch {
+      toast.error("שגיאה ביצירת הקישור");
+    } finally {
+      setSendingLink(false);
+    }
+  };
+
+  const copySentUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(sentUrl);
+      toast.success("הקישור הועתק");
+    } catch {
+      toast.error("לא ניתן להעתיק — סמן/י ידנית");
     }
   };
 
@@ -244,6 +310,8 @@ export default function QuestionnairesPage() {
                         setSelectedTemplate(template);
                         setClientSearch("");
                         setSelectedClient("");
+                        setSentUrl("");
+                        setSendChannel("link");
                         setIsDialogOpen(true);
                       }}
                     >
@@ -456,15 +524,78 @@ export default function QuestionnairesPage() {
             )}
           </div>
 
+          {/* שליחה למילוי-עצמי — רק לשאלוני דיווח-עצמי (המטופל/ההורה ממלא) */}
+          {selectedTemplate?.testType === "SELF_REPORT" && (
+            <div className="border rounded-lg p-3 space-y-3 bg-muted/30">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Send className="h-4 w-4 text-primary" />
+                שליחה למילוי עצמי (המטופל/ההורה ממלא בעצמו)
+              </div>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={sendChannel}
+                  onValueChange={(v) =>
+                    setSendChannel(v as "link" | "sms" | "email" | "both")
+                  }
+                >
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="link">העתקת קישור</SelectItem>
+                    <SelectItem value="sms">SMS</SelectItem>
+                    <SelectItem value="email">מייל</SelectItem>
+                    <SelectItem value="both">SMS + מייל</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="secondary"
+                  onClick={sendSelfReportLink}
+                  disabled={!selectedClient || sendingLink}
+                  className="shrink-0"
+                >
+                  {sendingLink ? (
+                    <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                  ) : (
+                    <Send className="h-4 w-4 ml-2" />
+                  )}
+                  {sendChannel === "link" ? "צור קישור" : "שלח"}
+                </Button>
+              </div>
+              {sentUrl && (
+                <div className="flex items-center gap-2">
+                  <input
+                    readOnly
+                    value={sentUrl}
+                    onFocus={(e) => e.currentTarget.select()}
+                    className="flex-1 border rounded-md px-2 py-1.5 text-xs bg-background text-muted-foreground"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={copySentUrl}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                הקישור אישי, תקף ל-14 יום וניתן למילוי פעם אחת. התוצאה תחזור אליך
+                מנוקדת.
+              </p>
+            </div>
+          )}
+
           <div className="flex gap-3 justify-end">
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
               ביטול
             </Button>
-            <Button 
+            <Button
               onClick={startQuestionnaire}
               disabled={!selectedClient || creating}
             >
-              {creating ? "יוצר..." : "התחל שאלון"}
+              {creating ? "יוצר..." : "מילוי על ידי המטפל"}
             </Button>
           </div>
         </DialogContent>

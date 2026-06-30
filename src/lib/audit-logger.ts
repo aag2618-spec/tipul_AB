@@ -34,6 +34,7 @@ export type AuditRecordType =
   | "CONSENT_FORM"
   | "CLIENT_COMMITMENT"
   | "INTAKE_RESPONSE"
+  | "QUESTIONNAIRE_RESPONSE"
   // מעקב מנהלת על התכתבויות בין מטפלים (קריאת תוכן פרטי של אנשי צוות).
   | "THERAPIST_CHAT";
 

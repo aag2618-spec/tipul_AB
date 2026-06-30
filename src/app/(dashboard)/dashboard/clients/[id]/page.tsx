@@ -38,6 +38,7 @@ import { SendReminderButton } from "@/components/clients/send-reminder-button";
 import { SendPaymentHistoryButton } from "@/components/clients/send-payment-history-button";
 import { SendBookingLinkButton } from "@/components/clients/send-booking-link-button";
 import { SendIntakeLinkButton } from "@/components/clients/send-intake-link-button";
+import { SendQuestionnaireLinkButton } from "@/components/questionnaires/send-questionnaire-link-button";
 import { CombinedAnalysis } from "@/components/questionnaires/combined-analysis";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
 import { SessionHistoryGrid } from "@/components/clients/session-history-grid";
@@ -1243,12 +1244,15 @@ export default async function ClientPage({
                           {client._count.questionnaireResponses} שאלונים ממולאים
                         </CardDescription>
                       </div>
-                      <Button asChild>
-                        <Link href={`/dashboard/questionnaires/new?client=${client.id}`}>
-                          <Plus className="ml-2 h-4 w-4" />
-                          שאלון חדש
-                        </Link>
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <SendQuestionnaireLinkButton clientId={client.id} />
+                        <Button asChild>
+                          <Link href={`/dashboard/questionnaires/new?client=${client.id}`}>
+                            <Plus className="ml-2 h-4 w-4" />
+                            שאלון חדש
+                          </Link>
+                        </Button>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>
