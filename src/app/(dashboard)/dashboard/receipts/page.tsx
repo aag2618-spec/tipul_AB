@@ -209,6 +209,9 @@ export default function ReceiptsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<"all" | "with" | "without">("all");
+  // סינון לפי מטפל — רלוונטי רק כשרואים את כל הקליניקה (מזכירה / מנהלת במצב
+  // "כל הקליניקה"). "all" = כל המטפלים.
+  const [therapistFilter, setTherapistFilter] = useState<string>("all");
   const [therapist, setTherapist] = useState<TherapistInfo | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDownloading, setIsDownloading] = useState(false);
@@ -531,6 +534,17 @@ export default function ReceiptsPage() {
     }
   };
 
+  // רשימת המטפלים שמופיעים בקבלות (לבורר הסינון) — רק כשרואים את כל הקליניקה.
+  const therapistOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of payments) {
+      if (p.client.therapist) map.set(p.client.therapist.id, p.client.therapist.name);
+    }
+    return Array.from(map, ([id, name]) => ({ id, name })).sort((a, b) =>
+      a.name.localeCompare(b.name, "he"),
+    );
+  }, [payments]);
+
   const filteredPayments = useMemo(() => {
     let filtered = payments;
 
@@ -540,12 +554,20 @@ export default function ReceiptsPage() {
       filtered = filtered.filter((p) => !p.hasReceipt);
     }
 
+    // סינון לפי מטפל נבחר (פעיל רק כשבורר המטפל מוצג).
+    if (showTherapistMarker && therapistFilter !== "all") {
+      filtered = filtered.filter((p) => p.client.therapist?.id === therapistFilter);
+    }
+
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
       filtered = filtered.filter(
         (p) =>
           p.client.name.toLowerCase().includes(search) ||
-          (p.receiptNumber && p.receiptNumber.toLowerCase().includes(search))
+          (p.receiptNumber && p.receiptNumber.toLowerCase().includes(search)) ||
+          // חיפוש חופשי תופס גם שם מטפל — נוח למזכירה/מנהלת שרואות את כל הקליניקה.
+          (showTherapistMarker &&
+            p.client.therapist?.name.toLowerCase().includes(search))
       );
     }
 
@@ -554,7 +576,7 @@ export default function ReceiptsPage() {
       const dateB = new Date(b.paidAt || b.createdAt).getTime();
       return dateB - dateA;
     });
-  }, [payments, filterType, searchTerm]);
+  }, [payments, filterType, searchTerm, therapistFilter, showTherapistMarker]);
 
   const paymentsWithReceipts = useMemo(() => filteredPayments.filter((p) => p.hasReceipt), [filteredPayments]);
 
@@ -679,12 +701,31 @@ export default function ReceiptsPage() {
         <div className="relative flex-1">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="חפש לפי שם מטופל או מספר קבלה..."
+            placeholder={
+              showTherapistMarker
+                ? "חפש לפי שם מטופל, מטפל או מספר קבלה..."
+                : "חפש לפי שם מטופל או מספר קבלה..."
+            }
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pr-10"
           />
         </div>
+        {showTherapistMarker && (
+          <Select value={therapistFilter} onValueChange={setTherapistFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="כל המטפלים" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">כל המטפלים</SelectItem>
+              {therapistOptions.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <Select value={filterType} onValueChange={(v) => setFilterType(v as "all" | "with" | "without")}>
           <SelectTrigger className="w-[160px]">
             <SelectValue />
