@@ -240,9 +240,25 @@ export function TemplateDialog({
             </div>
           </div>
 
+          {/* הבהרת תזמון — המטלה נוצרת אוטומטית בכל בוקר (חלון 06:00–08:00
+              שעון ישראל), פעם אחת. אין שליטה על שעה מדויקת. בשבת/חג היצירה
+              נדחית למוצאי שבת/חג. */}
+          {recurrence !== "NONE" && (
+            <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+              ⏰ המטלה נשלחת אוטומטית <strong>בכל בוקר</strong> (בסביבות
+              06:00–08:00).
+              {recurrence === "DAILY" && " היא תופיע לעובדים מדי יום."}
+              {recurrence === "WEEKLY" &&
+                " בחר/י למטה באיזה יום בשבוע — היא תישלח בבוקר אותו יום."}
+              {recurrence === "MONTHLY" &&
+                " בחר/י למטה באיזה יום בחודש — היא תישלח בבוקר אותו תאריך."}
+              {" בשבת/חג השליחה נדחית למוצאי שבת/חג."}
+            </p>
+          )}
+
           {recurrence === "WEEKLY" && (
             <div className="space-y-2">
-              <Label>ביום</Label>
+              <Label>באיזה יום בשבוע?</Label>
               <Select value={weekday} onValueChange={setWeekday} disabled={submitting}>
                 <SelectTrigger>
                   <SelectValue />
@@ -255,12 +271,15 @@ export function TemplateDialog({
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                ברירת המחדל היא יום ראשון (תחילת השבוע).
+              </p>
             </div>
           )}
 
           {recurrence === "MONTHLY" && (
             <div className="space-y-2">
-              <Label htmlFor="tpl-monthday">בכל ה-... לחודש (1-31)</Label>
+              <Label htmlFor="tpl-monthday">באיזה יום בחודש? (1–31)</Label>
               <Input
                 id="tpl-monthday"
                 type="number"

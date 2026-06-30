@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   Accordion,
   AccordionItem,
@@ -24,6 +25,7 @@ import {
   MessageCircle,
   ChevronDown,
   ChevronUp,
+  Search,
 } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -112,6 +114,8 @@ function ClinicTasksPageInner() {
   // צילום-מצב של מטלות עם פעילות חדשה שלא נקראה (הערה/ביצוע), נשלף בכניסה.
   // נשמר בנפרד מה-badge: גם אחרי סימון-נקרא, החיווי "חדש" נשאר גלוי עד רענון.
   const [newTaskIds, setNewTaskIds] = useState<Set<string>>(new Set());
+  // חיפוש חופשי — מסנן את הרשימה של הלשונית הפעילה (מטלות/תבניות).
+  const [query, setQuery] = useState("");
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -212,6 +216,23 @@ function ClinicTasksPageInner() {
     }
   };
 
+  const q = query.trim().toLowerCase();
+  const filteredGroups = q
+    ? groups.filter(
+        (g) =>
+          (g.title || "").toLowerCase().includes(q) ||
+          (g.description || "").toLowerCase().includes(q) ||
+          g.assignees.some((a) => (a.name || "").toLowerCase().includes(q))
+      )
+    : groups;
+  const filteredTemplates = q
+    ? templates.filter(
+        (t) =>
+          (t.title || "").toLowerCase().includes(q) ||
+          (t.description || "").toLowerCase().includes(q)
+      )
+    : templates;
+
   return (
     <div className="space-y-6" dir="rtl">
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -263,7 +284,21 @@ function ClinicTasksPageInner() {
         </button>
       </div>
 
-      {/* ===== תצוגת מטלות — רשימה מתקפלת (Accordion) ===== */}
+      {/* חיפוש — מסנן את הרשימה של הלשונית הפעילה */}
+      {((view === "tasks" && groups.length > 0) ||
+        (view === "templates" && templates.length > 0)) && (
+        <div className="relative max-w-sm">
+          <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={view === "tasks" ? "חיפוש מטלה…" : "חיפוש תבנית…"}
+            className="pr-9"
+          />
+        </div>
+      )}
+
+      {/* ===== תצוגת מטלות — כרטיסים מתקפלים, 3 בשורה ===== */}
       {view === "tasks" &&
         (loading ? (
           <div className="flex justify-center py-12">
@@ -277,21 +312,27 @@ function ClinicTasksPageInner() {
               <p className="text-sm">לחצ/י &quot;מטלה חדשה&quot; כדי להתחיל.</p>
             </CardContent>
           </Card>
-        ) : (
+        ) : filteredGroups.length === 0 ? (
           <Card>
-            <CardContent className="p-0">
-              <Accordion
-                type="multiple"
-                value={openItems}
-                onValueChange={setOpenItems}
+            <CardContent className="py-12 text-center text-muted-foreground">
+              <Search className="h-10 w-10 mx-auto mb-3 opacity-40" />
+              <p>לא נמצאו מטלות התואמות לחיפוש.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <Accordion
+            type="multiple"
+            value={openItems}
+            onValueChange={setOpenItems}
+            className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start"
+          >
+            {filteredGroups.map((g) => (
+              <AccordionItem
+                key={g.batchId}
+                value={g.batchId}
+                id={`tg-${g.batchId}`}
+                className="rounded-lg border bg-card shadow-sm px-4 last:border-b"
               >
-                {groups.map((g) => (
-                  <AccordionItem
-                    key={g.batchId}
-                    value={g.batchId}
-                    id={`tg-${g.batchId}`}
-                    className="px-4"
-                  >
                     <AccordionTrigger className="hover:no-underline py-3">
                       {/* שורה מקופלת: כותרת + עדיפות/יעד + חיווי "חדש" + מונה */}
                       <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -437,12 +478,10 @@ function ClinicTasksPageInner() {
                     </AccordionContent>
                   </AccordionItem>
                 ))}
-              </Accordion>
-            </CardContent>
-          </Card>
+          </Accordion>
         ))}
 
-      {/* ===== תצוגת תבניות ===== */}
+      {/* ===== תצוגת תבניות — 3 בשורה ===== */}
       {view === "templates" &&
         (templates.length === 0 ? (
           <Card>
@@ -454,9 +493,16 @@ function ClinicTasksPageInner() {
               </p>
             </CardContent>
           </Card>
+        ) : filteredTemplates.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center text-muted-foreground">
+              <Search className="h-10 w-10 mx-auto mb-3 opacity-40" />
+              <p>לא נמצאו תבניות התואמות לחיפוש.</p>
+            </CardContent>
+          </Card>
         ) : (
-          <div className="space-y-3">
-            {templates.map((t) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
+            {filteredTemplates.map((t) => (
               <Card key={t.id} className={t.active ? "" : "opacity-60"}>
                 <CardContent className="py-3 flex items-start justify-between gap-3">
                   <div className="min-w-0">
