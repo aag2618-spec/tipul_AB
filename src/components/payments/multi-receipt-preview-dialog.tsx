@@ -186,9 +186,14 @@ export function MultiReceiptPreviewDialog({
   const internalReadyCount = loaded.filter(
     (r) => !r.isCardcom && r.state === "ready" && r.data,
   ).length;
-  // "הדפס הכל" מדפיס קבלות פנימיות בלבד (Cardcom נשלח ללקוח בנפרד). אם אין
-  // אף קבלה פנימית מוכנה — אין מה להדפיס.
+  // "הדפס הכל" מדפיס קבלות פנימיות בלבד (Cardcom = מסמך חיצוני שלא ניתן
+  // לרינדור/הדפסה inline, ונשלח ללקוח בנפרד). אם אין אף קבלה פנימית מוכנה —
+  // אין מה להדפיס.
   const printDisabled = isLoading || internalReadyCount === 0;
+  // כשכל הקבלות הן Cardcom (אין אף קבלה פנימית) — אין שום משמעות ל"הדפס הכל",
+  // אז מסתירים אותו לגמרי במקום להציג כפתור מושבת שנראה לחיץ ומבלבל. הפתיחה/
+  // הדפסה של קבלת Cardcom נעשית דרך "פתח/הדפס" שליד כל קבלה.
+  const hasInternalReceipts = loaded.some((r) => !r.isCardcom);
 
   // ── גוף קבלה פנימית (משותף למסך ולהדפסה) ─────────────────────
   const renderReceiptBody = (data: InternalReceiptData, fallbackId: string) => {
@@ -379,9 +384,11 @@ export function MultiReceiptPreviewDialog({
             <DialogDescription className="text-xs text-muted-foreground text-right">
               {isLoading
                 ? "טוענים את הקבלה..."
-                : loaded.length === 1
-                  ? 'הקבלה מוכנה. לחיצה על "הדפס" תפתח את חלון ההדפסה.'
-                  : 'כל הקבלות מוצגות כאן. לחיצה על "הדפס הכל" תדפיס את כולן, כל קבלה בעמוד נפרד.'}
+                : !hasInternalReceipts
+                  ? 'כל קבלה נשלחה ללקוח אוטומטית. לפתיחה או הדפסה ידנית — לחצו "פתח/הדפס" שליד כל קבלה.'
+                  : loaded.length === 1
+                    ? 'הקבלה מוכנה. לחיצה על "הדפס" תפתח את חלון ההדפסה.'
+                    : 'כל הקבלות מוצגות כאן. לחיצה על "הדפס הכל" תדפיס את כולן, כל קבלה בעמוד נפרד.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -395,14 +402,20 @@ export function MultiReceiptPreviewDialog({
           </div>
 
           <DialogFooter className="p-3 border-t bg-background shrink-0 gap-2 flex-row-reverse sm:justify-between">
-            <Button
-              onClick={handlePrintAll}
-              disabled={printDisabled}
-              className="gap-1.5 bg-teal-600 hover:bg-teal-700 font-bold"
-            >
-              <Printer className="h-4 w-4" />
-              {loaded.length === 1 ? "הדפס" : "הדפס הכל"}
-            </Button>
+            {/* "הדפס הכל" מוצג רק כשיש קבלות פנימיות להדפיס. בתשלום אשראי
+                (כל הקבלות Cardcom) הכפתור מוסתר — אחרת היה מופיע מושבת ונראה
+                כמו כפתור תקול שלא מגיב. את קבלת ה-Cardcom פותחים/מדפיסים דרך
+                "פתח/הדפס" שליד כל קבלה. */}
+            {hasInternalReceipts && (
+              <Button
+                onClick={handlePrintAll}
+                disabled={printDisabled}
+                className="gap-1.5 bg-teal-600 hover:bg-teal-700 font-bold"
+              >
+                <Printer className="h-4 w-4" />
+                {loaded.length === 1 ? "הדפס" : "הדפס הכל"}
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={() => onOpenChange(false)}
