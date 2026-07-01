@@ -16,6 +16,7 @@ import {
   canSecretaryAccessModel,
   getClientSafeSelectForSecretary,
   getSessionSafeSelectForSecretary,
+  stripBlockedSessionFieldsForSecretary,
   getSessionIncludeForRole,
   getPaymentIncludeForRole,
   isSecretaryClinicalDenied,
@@ -446,10 +447,41 @@ describe("getSessionSafeSelectForSecretary", () => {
     expect(sel.type).toBe(true);
     expect(sel.price).toBe(true);
     expect(sel.cancelledAt).toBe(true);
-    expect(sel.cancellationReason).toBe(true);
+    expect(sel.cancellationRequestedAt).toBe(true);
     expect(sel.clientId).toBe(true);
     expect(sel.therapistId).toBe(true);
     expect(sel.organizationId).toBe(true);
+  });
+
+  it("excludes cancellationReason (patient-authored free text, may be clinical)", () => {
+    const sel = getSessionSafeSelectForSecretary() as Record<string, unknown>;
+    expect(sel.cancellationReason).toBeUndefined();
+  });
+});
+
+describe("stripBlockedSessionFieldsForSecretary", () => {
+  it("removes topic, notes and cancellationReason; keeps admin fields", () => {
+    const stripped = stripBlockedSessionFieldsForSecretary({
+      id: "s1",
+      startTime: new Date(),
+      status: "PENDING_CANCELLATION",
+      topic: "clinical topic",
+      notes: "therapist notes",
+      cancellationReason: "אושפזתי בגלל התקף",
+      cancellationRequestedAt: new Date(),
+    }) as Record<string, unknown>;
+    expect(stripped.topic).toBeUndefined();
+    expect(stripped.notes).toBeUndefined();
+    expect(stripped.cancellationReason).toBeUndefined();
+    expect(stripped.id).toBe("s1");
+    expect(stripped.status).toBe("PENDING_CANCELLATION");
+    expect(stripped.cancellationRequestedAt).toBeDefined();
+  });
+
+  it("does not mutate the original object", () => {
+    const original = { id: "s2", cancellationReason: "x" };
+    stripBlockedSessionFieldsForSecretary(original as Record<string, unknown>);
+    expect(original.cancellationReason).toBe("x");
   });
 });
 
@@ -561,6 +593,8 @@ describe("CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY", () => {
   it("documents blocked clinical fields on TherapySession", () => {
     const sessionBlocked = CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY.session as readonly string[];
     expect(sessionBlocked).toContain("notes");
+    expect(sessionBlocked).toContain("topic");
+    expect(sessionBlocked).toContain("cancellationReason");
   });
 
   it("blocks clinical models (SessionNote, QuestionnaireResponse)", () => {

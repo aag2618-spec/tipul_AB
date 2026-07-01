@@ -25,6 +25,7 @@ import {
   maskPhone,
 } from "@/lib/booking-links";
 import { verifyOtpSchema } from "@/lib/validations/booking";
+import { shouldChargeCancellation } from "@/lib/cancellation";
 import {
   createCancellationRequestToClientEmail,
   createCancellationRequestToTherapistEmail,
@@ -114,9 +115,15 @@ export async function GET(
   const base = { therapistName: gate.therapistName || "המטפל/ת" };
 
   if (!gate.enabled) {
+    // מדיניות המטפל/ת אינה מאפשרת ביטול אונליין — מסך מכובד ומפנה ליצירת קשר.
     return NextResponse.json(
-      { ...base, message: "ביטול תור אונליין אינו זמין. נא ליצור קשר ישירות." },
-      { status: 404 }
+      {
+        ...base,
+        cancellationDisabled: true,
+        message:
+          "ביטול תור אונליין אינו זמין אצל המטפל/ת. נשמח לעזור — נא ליצור קשר ישירות ונתאם יחד.",
+      },
+      { status: 200 }
     );
   }
 
@@ -145,11 +152,13 @@ export async function GET(
 
   // מאומת — מחזירים את הפגישות הקרובות (SCHEDULED / PENDING_CANCELLATION) של
   // המטופל בלבד. שדות אדמיניסטרטיביים בלבד (מינימום PHI: מטפל + מועד).
+  // minHours = חלון הביטול-בחינם של המטפל/ת; נשלח לצד הלקוח לניסוח ההודעות.
   const appointments = await getUpcomingAppointments(link.clientId, gate.minHours);
-  return NextResponse.json({ ...base, verified: true, appointments });
+  return NextResponse.json({ ...base, verified: true, appointments, freeCancellationHours: gate.minHours });
 }
 
-// שולף פגישות עתידיות של המטופל + מחשב אם ניתנות לביטול לפי חלון המטפל.
+// שולף פגישות עתידיות של המטופל. המטופל תמיד רשאי לבקש ביטול (כשהמתג פתוח);
+// ההבחנה היא בין ביטול בחינם לביטול בתשלום, לפי מדיניות המטפל (shouldChargeCancellation).
 async function getUpcomingAppointments(clientId: string, minHours: number) {
   const now = new Date();
   const rows = await prisma.therapySession.findMany({
@@ -163,6 +172,7 @@ async function getUpcomingAppointments(clientId: string, minHours: number) {
       id: true,
       startTime: true,
       status: true,
+      price: true,
       therapist: { select: { name: true } },
     },
     orderBy: { startTime: "asc" },
@@ -170,21 +180,18 @@ async function getUpcomingAppointments(clientId: string, minHours: number) {
   });
 
   return rows.map((s) => {
-    const hoursUntil = (s.startTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+    const hUntil = (s.startTime.getTime() - now.getTime()) / (1000 * 60 * 60);
     const pending = s.status === "PENDING_CANCELLATION";
-    const cancellable = !pending && hoursUntil >= minHours;
+    // ביטול "מאוחר" (בתוך חלון החינם) עם מחיר חיובי → כרוך בתשלום.
+    const chargeable = shouldChargeCancellation(hUntil, minHours, Number(s.price) || 0);
     return {
       id: s.id,
       startTime: s.startTime.toISOString(),
       therapistName: s.therapist?.name || "המטפל/ת",
       pending,
-      cancellable,
-      // סיבה כשלא ניתן לבטל — לתצוגה בלבד.
-      blockedReason: pending
-        ? "בקשת ביטול כבר ממתינה"
-        : !cancellable
-          ? `לא ניתן לבטל פחות מ-${minHours} שעות לפני התור`
-          : null,
+      // כל פגישה עתידית שאין לה בקשה ממתינה — ניתנת לביטול (בחינם או בתשלום).
+      cancellable: !pending,
+      chargeable,
     };
   });
 }
@@ -353,9 +360,21 @@ async function handleVerifyOtp(request: NextRequest, link: LoadedLink) {
 }
 
 // ─── ביטול פגישה בודדת ──────────────────────────────────────────────────────
+// סיבת הביטול נכתבת ע"י המטופל בעמוד, נשמרת ב-DB ונשלחת במייל למטפל (לא ב-SMS).
+// הגבלה ל-200 מילים (בקשת המשתמש) + cap תווים קשיח כהגנה מפני payload ענק.
+const MAX_REASON_WORDS = 200;
+function wordCount(s: string): number {
+  const t = s.trim();
+  return t ? t.split(/\s+/).length : 0;
+}
 const cancelSchema = z.object({
   sessionId: z.string().min(1).max(64),
-  reason: z.string().max(500, "סיבת ביטול ארוכה מדי").optional().or(z.literal("")),
+  reason: z
+    .string()
+    .max(4000, "סיבת ביטול ארוכה מדי")
+    .refine((v) => wordCount(v) <= MAX_REASON_WORDS, `סיבת הביטול מוגבלת ל-${MAX_REASON_WORDS} מילים`)
+    .optional()
+    .or(z.literal("")),
 });
 
 async function handleCancel(request: NextRequest, link: LoadedLink, minHours: number) {
@@ -403,14 +422,18 @@ async function handleCancel(request: NextRequest, link: LoadedLink, minHours: nu
     return NextResponse.json({ message: "לא ניתן לבטל פגישה זו" }, { status: 400 });
   }
 
+  // גבול קשיח יחיד: אי אפשר לבטל פגישה שכבר התחילה/עברה. מתחת לחלון הביטול-בחינם
+  // הביטול עדיין מותר — אך עשוי להיות כרוך בתשלום (לפי מדיניות המטפל/ת, נאכף
+  // בזרימת האישור הקיימת). minHours שמור לתיעוד/עקביות בלבד.
   const hoursUntilSession =
     (therapySession.startTime.getTime() - Date.now()) / (1000 * 60 * 60);
-  if (hoursUntilSession < minHours) {
+  if (hoursUntilSession <= 0) {
     return NextResponse.json(
-      { message: `לא ניתן לבטל פחות מ-${minHours} שעות לפני הפגישה. נא ליצור קשר ישירות.` },
+      { message: "הפגישה כבר התחילה — לא ניתן לבטל אונליין. נא ליצור קשר." },
       { status: 400 }
     );
   }
+  void minHours;
 
   // יצירת בקשת הביטול + עדכון סטטוס — זהה לזרימת request-cancellation הפנימית.
   await prisma.cancellationRequest.create({

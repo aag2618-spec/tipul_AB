@@ -12,7 +12,7 @@ type Appointment = {
   therapistName: string;
   pending: boolean;
   cancellable: boolean;
-  blockedReason: string | null;
+  chargeable: boolean;
 };
 
 type Meta = {
@@ -22,6 +22,8 @@ type Meta = {
   otpChannel?: "email" | "sms" | null;
   destinationMasked?: string | null;
   appointments?: Appointment[];
+  freeCancellationHours?: number;
+  cancellationDisabled?: boolean;
   shabbatBlocked?: boolean;
   shabbatMessage?: string;
   message?: string;
@@ -29,6 +31,12 @@ type Meta = {
 };
 
 const ACCENT = "#0f766e";
+const MAX_REASON_WORDS = 200; // תואם לאכיפה בשרת (route.ts)
+
+function countWords(s: string): number {
+  const t = s.trim();
+  return t ? t.split(/\s+/).length : 0;
+}
 
 function fmt(iso: string): string {
   const d = new Date(iso);
@@ -60,6 +68,7 @@ export function AppointmentsClient({ token }: { token: string }) {
   const [reason, setReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
   const [done, setDone] = useState<string | null>(null);
+  const reasonWords = countWords(reason);
 
   const load = useCallback(async () => {
     try {
@@ -168,6 +177,15 @@ export function AppointmentsClient({ token }: { token: string }) {
     );
   }
 
+  // מדיניות המטפל/ת אינה מאפשרת ביטול אונליין — מסך מכובד ומפנה ליצירת קשר.
+  if (meta?.cancellationDisabled) {
+    return (
+      <Shell title="ביטול תור" subtitle={`אצל ${meta.therapistName}`}>
+        <p>{meta.message}</p>
+      </Shell>
+    );
+  }
+
   if (fatal) {
     return (
       <Shell title="לא ניתן להציג" accent="#b91c1c">
@@ -215,9 +233,17 @@ export function AppointmentsClient({ token }: { token: string }) {
 
   // מאומת — רשימת פגישות
   const appts = meta?.appointments || [];
+  const freeH = meta?.freeCancellationHours;
+  const selected = appts.find((a) => a.id === cancelId) || null;
+  const selectedChargeable = !!selected?.chargeable;
   return (
     <Shell title="הפגישות שלי" subtitle={`אצל ${meta?.therapistName}`}>
       {done && <Banner tone="info">{done}</Banner>}
+      {freeH ? (
+        <p style={{ fontSize: 13, color: "#6b7280", marginTop: -4, marginBottom: 16 }}>
+          ביטול עד {freeH} שעות לפני הפגישה — ללא תשלום. קרוב יותר לפגישה, הביטול עשוי להיות כרוך בתשלום.
+        </p>
+      ) : null}
       {appts.length === 0 ? (
         <p style={{ color: "#666" }}>אין פגישות עתידיות.</p>
       ) : (
@@ -226,14 +252,24 @@ export function AppointmentsClient({ token }: { token: string }) {
             <div key={a.id} style={card()}>
               <div style={{ fontWeight: 600 }}>{fmt(a.startTime)}</div>
               <div style={{ fontSize: 14, color: "#666", marginTop: 4 }}>{a.therapistName}</div>
-              {a.cancellable ? (
-                <button style={{ ...btn(), marginTop: 12, background: "#fff", color: "#b91c1c", border: "1px solid #fca5a5" }} onClick={() => { setCancelId(a.id); setReason(""); }}>
-                  בקש ביטול
-                </button>
-              ) : (
-                <div style={{ marginTop: 10, fontSize: 13, color: a.pending ? "#b45309" : "#999" }}>
-                  {a.blockedReason}
+              {a.pending ? (
+                <div style={{ marginTop: 10, fontSize: 13, color: "#b45309" }}>
+                  בקשת ביטול כבר ממתינה לאישור
                 </div>
+              ) : (
+                <>
+                  {a.chargeable && (
+                    <div style={{ marginTop: 8, fontSize: 13, color: "#b45309" }}>
+                      ⚠ ביטול כעת עשוי להיות כרוך בתשלום
+                    </div>
+                  )}
+                  <button
+                    style={{ ...btn(), marginTop: 10, background: "#fff", color: "#b91c1c", border: "1px solid #fca5a5" }}
+                    onClick={() => { setCancelId(a.id); setReason(""); }}
+                  >
+                    בקש ביטול
+                  </button>
+                </>
               )}
             </div>
           ))}
@@ -244,17 +280,37 @@ export function AppointmentsClient({ token }: { token: string }) {
         <div style={overlay()}>
           <div style={{ ...shellBox(), maxWidth: 400 }}>
             <h2 style={{ marginTop: 0, fontSize: 20, color: ACCENT }}>בקשת ביטול</h2>
-            <p style={{ color: "#374151" }}>הבקשה תישלח למטפל/ת לאישור. תקבל/י עדכון.</p>
+            {selectedChargeable ? (
+              <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 8, padding: "10px 14px", fontSize: 14, color: "#92400e", marginBottom: 12 }}>
+                שים/י לב: לפי מדיניות הביטול{freeH ? ` (ביטול חינם עד ${freeH} שעות לפני)` : ""}, ביטול במועד זה עשוי להיות כרוך בתשלום. ניתן להמשיך — הבקשה תישלח למטפל/ת לאישור.
+              </div>
+            ) : (
+              <p style={{ color: "#374151" }}>
+                {freeH ? `ביטול עד ${freeH} שעות לפני הפגישה — ללא תשלום. ` : ""}הבקשה תישלח למטפל/ת לאישור, ותקבל/י עדכון.
+              </p>
+            )}
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="סיבת הביטול (אופציונלי)"
               rows={3}
-              maxLength={500}
-              style={{ ...input(), resize: "none", textAlign: "right" }}
+              style={{ ...input(), resize: "none", textAlign: "right", marginBottom: 4 }}
             />
-            <button style={{ ...btn(), background: "#b91c1c" }} disabled={cancelling} onClick={confirmCancel}>
-              {cancelling ? "שולח…" : "שלח בקשת ביטול"}
+            <div style={{ fontSize: 12, textAlign: "left", marginBottom: 8, color: reasonWords > MAX_REASON_WORDS ? "#b91c1c" : "#9ca3af" }}>
+              {reasonWords}/{MAX_REASON_WORDS} מילים
+            </div>
+            <button
+              style={{ ...btn(), background: "#b91c1c", opacity: reasonWords > MAX_REASON_WORDS ? 0.6 : 1 }}
+              disabled={cancelling || reasonWords > MAX_REASON_WORDS}
+              onClick={confirmCancel}
+            >
+              {cancelling
+                ? "שולח…"
+                : reasonWords > MAX_REASON_WORDS
+                  ? `יותר מ-${MAX_REASON_WORDS} מילים`
+                  : selectedChargeable
+                    ? "המשך/י בביטול"
+                    : "שלח בקשת ביטול"}
             </button>
             <button style={linkBtn()} disabled={cancelling} onClick={() => setCancelId(null)}>
               חזרה

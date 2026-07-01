@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig, configDefaults } from 'vitest/config';
 import path from 'path';
 
 export default defineConfig({
@@ -12,5 +12,8 @@ export default defineConfig({
   },
   test: {
     globals: true,
+    // לא לסרוק worktrees פנימיים של Claude — הם עותקים זמניים של הריפו,
+    // והטסטים שם פותרים @/ ל-src הראשי → כשלים מזויפים על קוד ישן.
+    exclude: [...configDefaults.exclude, '.claude/**'],
   },
 });

@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { parseIsraelTime } from "@/lib/date-utils";
 import { requireAuth } from "@/lib/api-auth";
-import { buildClientWhere, buildSessionWhere, isSecretary, loadScopeUser } from "@/lib/scope";
+import { buildClientWhere, buildSessionWhere, isSecretary, loadScopeUser, stripBlockedSessionFieldsForSecretary } from "@/lib/scope";
 import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { calculatePaidAmount } from "@/lib/payment-utils";
 import { serializePrisma } from "@/lib/serialize";
@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
     }));
 
     const safeSessions = isSecretary(scopeUser)
-      ? enrichedSessions.map(({ notes, topic, ...rest }: Record<string, unknown>) => rest)
+      ? enrichedSessions.map((s: Record<string, unknown>) => stripBlockedSessionFieldsForSecretary(s))
       : enrichedSessions;
 
     return NextResponse.json({

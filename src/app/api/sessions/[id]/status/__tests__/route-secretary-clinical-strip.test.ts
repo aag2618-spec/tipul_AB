@@ -29,7 +29,8 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("@/lib/api-auth", () => ({
   requireAuth: (...a: unknown[]) => requireAuth(...a),
 }));
-vi.mock("@/lib/scope", () => ({
+vi.mock("@/lib/scope", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/scope")>("@/lib/scope")),
   loadScopeUser: (...a: unknown[]) => loadScopeUser(...a),
   isSecretary: (...a: unknown[]) => isSecretary(...a),
   buildSessionWhere: () => ({}),

@@ -53,6 +53,7 @@ export interface SMSPlaceholders {
   סכום?: string;
   טלפון?: string;
   שעות?: string;
+  קישור?: string;
 }
 
 // ─── Phone Validation ─────────────────────────────────────────────

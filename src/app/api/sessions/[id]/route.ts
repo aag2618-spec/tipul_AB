@@ -10,7 +10,7 @@ import { logger } from "@/lib/logger";
 import { serializePrisma } from "@/lib/serialize";
 import { syncSessionUpdateToGoogleCalendar, syncSessionDeletionToGoogleCalendar } from "@/lib/google-calendar-sync";
 import { logDataAccess } from "@/lib/audit-logger";
-import { buildSessionWhere, isSecretary, secretaryCan } from "@/lib/scope";
+import { buildSessionWhere, isSecretary, secretaryCan, stripBlockedSessionFieldsForSecretary } from "@/lib/scope";
 import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { calculatePaidAmount } from "@/lib/payment-utils";
 import { copayApplies } from "@/lib/commitments";
@@ -123,8 +123,7 @@ export async function GET(
     // /api/sessions/calendar. roomId/location נשמרים (אדמיניסטרטיביים —
     // נדרשים לבורר החדר ולזיהוי חפיפת חדר).
     if (isSecretary(scopeUser)) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { topic, notes, ...rest } = enriched as unknown as Record<string, unknown>;
+      const rest = stripBlockedSessionFieldsForSecretary(enriched as unknown as Record<string, unknown>);
       return NextResponse.json(serializePrisma(rest));
     }
     return NextResponse.json(serializePrisma(enriched));
@@ -675,8 +674,7 @@ export async function PUT(
     // roomId/location נשמרים (נדרשים לבורר החדר/חפיפת חדר). parity עם calendar.
     // rename ל-_topic/_notes כי topic/notes כבר ב-scope (parsed.data למעלה).
     if (enrichedUpdated && isSecretary(scopeUser)) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { topic: _topic, notes: _notes, ...rest } = enrichedUpdated as unknown as Record<string, unknown>;
+      const rest = stripBlockedSessionFieldsForSecretary(enrichedUpdated as unknown as Record<string, unknown>);
       return NextResponse.json(serializePrisma(rest));
     }
     return NextResponse.json(serializePrisma(enrichedUpdated));
@@ -740,8 +738,7 @@ export async function PATCH(
     // topic/notes הקיימים. מזכירה (שמותר לה skipSummary בלבד — topic בקלט
     // כבר חסום ב-403 למעלה) לא תקבל תוכן קליני בתגובה. parity עם GET/PUT.
     if (isSecretary(scopeUser)) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { topic: _topic, notes: _notes, ...rest } = updatedSession as unknown as Record<string, unknown>;
+      const rest = stripBlockedSessionFieldsForSecretary(updatedSession as unknown as Record<string, unknown>);
       return NextResponse.json(serializePrisma(rest));
     }
     return NextResponse.json(serializePrisma(updatedSession));

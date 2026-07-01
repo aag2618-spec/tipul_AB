@@ -7,7 +7,7 @@ import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
 import { syncSessionToGoogleCalendar, syncSessionDeletionToGoogleCalendar } from "@/lib/google-calendar-sync";
-import { buildSessionWhere, isSecretary } from "@/lib/scope";
+import { buildSessionWhere, isSecretary, stripBlockedSessionFieldsForSecretary } from "@/lib/scope";
 import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { parseBody } from "@/lib/validations/helpers";
 import { sessionStatusSchema } from "@/lib/validations/session";
@@ -376,8 +376,7 @@ export async function PATCH(
     // (CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY.session) ש-update מחזיר אוטומטית.
     // מסננים מהתגובה למזכירה — parity עם /api/sessions ו-/api/sessions/[id].
     if (isSecretary(scopeUser)) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { topic, notes, ...rest } = updatedSession as unknown as Record<string, unknown>;
+      const rest = stripBlockedSessionFieldsForSecretary(updatedSession as unknown as Record<string, unknown>);
       return NextResponse.json(rest);
     }
 

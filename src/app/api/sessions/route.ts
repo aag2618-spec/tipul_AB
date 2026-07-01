@@ -15,6 +15,7 @@ import {
   isSecretary,
   resolveTherapistIdForSession,
   secretaryCan,
+  stripBlockedSessionFieldsForSecretary,
 } from "@/lib/scope";
 import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { calculatePaidAmount } from "@/lib/payment-utils";
@@ -153,11 +154,9 @@ export async function GET(request: NextRequest) {
     // אוטומטית. מסננים מהתגובה למזכירה — parity עם /api/sessions/calendar
     // ו-/api/sessions/[id]. roomId/location/payment נשמרים (אדמיניסטרטיביים).
     const finalSessions = isSecretary(scopeUser)
-      ? withPolicy.map((s) => {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { topic, notes, ...rest } = s as unknown as Record<string, unknown>;
-          return rest;
-        })
+      ? withPolicy.map((s) =>
+          stripBlockedSessionFieldsForSecretary(s as unknown as Record<string, unknown>)
+        )
       : withPolicy;
 
     return NextResponse.json(serializePrisma(finalSessions));

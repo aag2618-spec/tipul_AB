@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { parseIsraelTime } from "@/lib/date-utils";
 import { requireAuth } from "@/lib/api-auth";
-import { buildSessionWhere, isSecretary, secretaryCan } from "@/lib/scope";
+import { buildSessionWhere, isSecretary, secretaryCan, stripBlockedSessionFieldsForSecretary } from "@/lib/scope";
 import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { shouldScopePersonal } from "@/lib/view-scope";
 import { calculatePaidAmount } from "@/lib/payment-utils";
@@ -166,8 +166,7 @@ export async function GET(request: NextRequest) {
     // payment מוסר רק למזכירה ללא canViewPayments (כמו קודם).
     const finalSessions = isSecretary(scopeUser)
       ? enriched.map((s) => {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { topic, notes, ...rest } = s;
+          const rest = stripBlockedSessionFieldsForSecretary(s as Record<string, unknown>);
           if (!secretaryCan(scopeUser, "canViewPayments")) {
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { payment, ...noPayment } = rest;

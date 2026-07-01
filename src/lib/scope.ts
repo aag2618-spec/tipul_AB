@@ -102,7 +102,9 @@ export const CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY = {
   ] as const,
   // שדות קליניים על TherapySession — `notes` הוא סיכום חופשי של המטפל.
   // `topic` (נושא הפגישה) גם נחשב תוכן קליני ומוחרג ב-safe select.
-  session: ["notes", "topic"] as const,
+  // `cancellationReason` — טקסט חופשי שהמטופל כותב בעצמו (דרך קישור הביטול
+  // הציבורי), עלול להכיל הקשר רפואי רגיש → חסום למזכירה (חוק זכויות החולה).
+  session: ["notes", "topic", "cancellationReason"] as const,
   // מודלים שלמים שמזכירה לא רואה כלל — גישה חסומה בקוד, אסור לעקוף דרך
   // secretaryPermissions. QuestionnaireResponse חסום כי `answers` הוא תוכן
   // קליני גולמי; אם בעתיד צריך metadata בלבד (totalScore/status) יש לחשוף
@@ -527,7 +529,9 @@ export function getSessionSafeSelectForSecretary() {
     location: true,
     isRecurring: true,
     skipSummary: true,
-    cancellationReason: true,
+    // cancellationReason מוחרג בכוונה — טקסט חופשי של המטופל שעלול להכיל
+    // תוכן קליני (ראה CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY.session). המזכירה
+    // עדיין רואה שהפגישה בוטלה/נתבקשה לביטול דרך cancellationRequestedAt/cancelledAt.
     cancellationRequestedAt: true,
     cancelledAt: true,
     cancelledBy: true,
@@ -538,6 +542,22 @@ export function getSessionSafeSelectForSecretary() {
     createdAt: true,
     updatedAt: true,
   } as const;
+}
+
+/**
+ * מסיר שדות קליניים חסומים למזכירה מאובייקט TherapySession שכבר נשלף
+ * (כש-Prisma `include` מחזיר את כל ה-scalars). מקור-אמת יחיד: איטרציה על
+ * CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY.session — כך ששדה קליני חדש שיתווסף
+ * לרשימה יוסר אוטומטית בכל נקודות ה-API, בלי destructuring ידני שנוטה להתיישן.
+ */
+export function stripBlockedSessionFieldsForSecretary<T extends Record<string, unknown>>(
+  session: T
+): T {
+  const clone = { ...session };
+  for (const field of CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY.session) {
+    delete (clone as Record<string, unknown>)[field];
+  }
+  return clone;
 }
 
 /**

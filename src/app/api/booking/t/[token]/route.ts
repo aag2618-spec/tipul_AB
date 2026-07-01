@@ -47,6 +47,7 @@ async function loadLink(token: string) {
     where: { token },
     select: {
       id: true,
+      token: true,
       status: true,
       expiresAt: true,
       therapistId: true,
@@ -594,6 +595,20 @@ async function handleCreate(request: NextRequest, link: LoadedLink) {
     },
   });
 
+  // קישור "הפגישות שלי" (ביטול ע"י המטופל) — ממחזר את אותו token, מותנה במתג
+  // allowClientCancellation של המטפל/ת. buildManageUrl נגזר מ-env (לא user input).
+  let manageUrl: string | null = null;
+  {
+    const cs = await prisma.communicationSetting.findUnique({
+      where: { userId: settings.therapist.id },
+      select: { allowClientCancellation: true },
+    });
+    if (!cs || cs.allowClientCancellation) {
+      const { buildManageUrl } = await import("@/lib/appointment-manage-link");
+      manageUrl = buildManageUrl(link.token);
+    }
+  }
+
   // אישור למטופל — לפרטי הקשר שב-DB (לא מהטופס).
   if (link.client.email) {
     const isPending = sessionStatus === "PENDING_APPROVAL";
@@ -607,6 +622,7 @@ async function handleCreate(request: NextRequest, link: LoadedLink) {
           <p style="margin: 8px 0;"><strong>מטפל/ת:</strong> ${escapeHtml(settings.therapist.name || "")}</p>
           <p style="margin: 8px 0;"><strong>סטטוס:</strong> ${isPending ? "ממתין לאישור" : "מאושר"}</p>
         </div>
+        ${manageUrl ? `<div style="text-align: center; margin: 20px 0;"><a href="${manageUrl}" style="display: inline-block; background: #0f766e; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: bold;">צפייה וביטול תור</a></div><p style="color: #666; font-size: 13px; text-align: center;">בכניסה יישלח קוד אימות קצר לאבטחת המידע שלך.</p>` : ""}
         <p style="color: #999; font-size: 12px; margin-top: 20px;">מופעל על ידי MyTipul</p>
       </div>`;
     try {
@@ -635,10 +651,13 @@ async function handleCreate(request: NextRequest, link: LoadedLink) {
       userId: settings.therapist.id,
       phone: link.client.phone,
       template: commSettings?.templateBookingConfirmSMS,
+      // קישור "הפגישות שלי" נוסף לתבנית ברירת המחדל כשביטול-מטופל מאופשר.
       defaultTemplate: isPendingSMS
         ? "שלום {שם}, הבקשה התקבלה וממתינה לאישור. פגישה ב-{תאריך} ב-{שעה}"
-        : "שלום {שם}, התור אושר! פגישה ב-{תאריך} ב-{שעה}",
-      placeholders: { שם: clientName, תאריך: formattedDate, שעה: time },
+        : manageUrl
+          ? "שלום {שם}, התור אושר! פגישה ב-{תאריך} ב-{שעה}. לצפייה/ביטול: {קישור}"
+          : "שלום {שם}, התור אושר! פגישה ב-{תאריך} ב-{שעה}",
+      placeholders: { שם: clientName, תאריך: formattedDate, שעה: time, קישור: manageUrl || "" },
       settingKey: "sendBookingConfirmationSMS",
       sessionId: therapySession.id,
       clientId: link.clientId,
