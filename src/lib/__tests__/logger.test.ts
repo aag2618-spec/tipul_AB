@@ -59,4 +59,19 @@ describe("logger — סניטיזציה של PHI/PII בלוגים", () => {
     expect(out.history).toBe("x");
     expect(out.errorCode).toBe("E12");
   });
+
+  // ── subject: נושאי מייל מכילים שמות מטופלים/מטפלים (resend.ts, webhooks/resend) ─
+  it("מסתיר את המפתח `subject` (נושא מייל מכיל שם מטופל)", () => {
+    logger.info("[email] חסום בשבת/חג", { subject: "🔔 בקשת ביטול חדשה - שרה כהן" });
+    expect(lastJson(logSpy).subject).toBe("[REDACTED]");
+  });
+
+  it("מסתיר `subject` גם בתוך אובייקט מקונן (data.subject ב-webhook נכנס), בלי over-redaction לאחים", () => {
+    logger.info("Processing incoming email:", {
+      data: { subject: "תזכורת תשלום - שרה כהן", status: "received" },
+    });
+    const data = lastJson(logSpy).data as Record<string, unknown>;
+    expect(data.subject).toBe("[REDACTED]");
+    expect(data.status).toBe("received"); // מפתח לא-PHI — חייב להישאר
+  });
 });

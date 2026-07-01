@@ -234,6 +234,8 @@ export default function TwoFactorVerifyPage() {
                     ? "text-center text-xl tracking-widest font-mono"
                     : "text-center text-2xl tracking-[0.5em] font-mono"
                 }
+                // מפצה על דחיפת-השמאל של WebKit בטקסט ממורכז עם letter-spacing (חצי ה-tracking)
+                style={{ textIndent: isRecoveryMode ? "0.05em" : "0.25em" }}
                 placeholder={isRecoveryMode ? "XXXXX-XXXXX" : "------"}
                 dir="ltr"
               />

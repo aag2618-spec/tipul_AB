@@ -205,7 +205,7 @@ export async function GET(request: NextRequest) {
       const therapist = setting.user;
       const minAmount = Number(setting.debtReminderMinAmount);
 
-      logger.info(`[Debt Reminders Cron] Processing therapist ${therapist.name} (min amount: ₪${minAmount})`);
+      logger.info("[Debt Reminders Cron] Processing therapist", { therapistId: therapist.id, minAmount });
 
       // Get all clients with unpaid sessions for this therapist
       const clients = await prisma.client.findMany({
@@ -249,7 +249,7 @@ export async function GET(request: NextRequest) {
 
         // Skip if debt is below minimum
         if (totalDebt < minAmount) {
-          logger.info(`[Debt Reminders Cron] Skipping ${client.name} - debt ₪${totalDebt} below minimum ₪${minAmount}`);
+          logger.info("[Debt Reminders Cron] Skipping client - debt below minimum", { clientId: client.id, totalDebt, minAmount });
           continue;
         }
 
@@ -274,11 +274,11 @@ export async function GET(request: NextRequest) {
           log.subject?.includes("תזכורת תשלום")
         );
         if (existingDebtEmail) {
-          logger.info(`[Debt Reminders Cron] Skipping ${client.name} - already sent this month`);
+          logger.info("[Debt Reminders Cron] Skipping client - already sent this month", { clientId: client.id });
           continue;
         }
 
-        logger.info(`[Debt Reminders Cron] Sending to ${client.name} - debt ₪${totalDebt}`);
+        logger.info("[Debt Reminders Cron] Sending reminder", { clientId: client.id, totalDebt });
         totalClientsProcessed++;
 
         // Create email
@@ -335,8 +335,10 @@ export async function GET(request: NextRequest) {
             },
           });
         } else {
-          errors.push(`Failed to send to ${client.name} (${client.email}): ${result.error}`);
-          logger.error(`[Debt Reminders Cron] Error sending to ${client.name}:`, { error: result.error });
+          // אין client.name/client.email כאן — המערך הזה גם נרשם ל-logs (שורה ~367)
+          // וגם מוחזר בתגובת ה-HTTP (response.errors). clientId בלבד מונע דליפת PHI.
+          errors.push(`Failed to send to client ${client.id}: ${result.error}`);
+          logger.error("[Debt Reminders Cron] Error sending reminder", { clientId: client.id, error: result.error });
         }
 
         // Send SMS debt reminder (independent from email)

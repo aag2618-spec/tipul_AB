@@ -361,6 +361,10 @@ export default function TwoFactorSetupPage() {
                   disabled={busy}
                   autoFocus
                   className="text-center text-2xl tracking-[0.5em] font-mono"
+                  // WebKit (Safari/iOS, גם Chrome ב-iOS) מוסיף את רווח האותיות גם אחרי
+                  // התו האחרון, ולכן טקסט ממורכז עם letter-spacing נדחף שמאלה בחצי הרווח.
+                  // text-indent של חצי ה-tracking מפצה ומחזיר את הספרות למרכז.
+                  style={{ textIndent: "0.25em" }}
                   placeholder="------"
                   dir="ltr"
                 />
@@ -413,6 +417,10 @@ export default function TwoFactorSetupPage() {
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                   disabled={busy}
                   className="text-center text-2xl tracking-[0.5em] font-mono"
+                  // WebKit (Safari/iOS, גם Chrome ב-iOS) מוסיף את רווח האותיות גם אחרי
+                  // התו האחרון, ולכן טקסט ממורכז עם letter-spacing נדחף שמאלה בחצי הרווח.
+                  // text-indent של חצי ה-tracking מפצה ומחזיר את הספרות למרכז.
+                  style={{ textIndent: "0.25em" }}
                   placeholder="------"
                   dir="ltr"
                 />

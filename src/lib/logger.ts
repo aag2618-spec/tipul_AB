@@ -31,8 +31,16 @@ interface LogEntry {
 // של מטופלים גלוי ל-Render logs (למשל sms.ts `{ to: phone }`, cron/notifications
 // ו-debt-reminders `{ recipient: client.email }`). הרגקס משפיע רק על פלט ה-logger,
 // לא על שדות DB (CommunicationLog) ולא על הפרמטר `to` של sendEmail.
+//
+// 2026-06-10 (המשך): הוספת `subject`. נושאי מייל מכילים שמות מטופלים/מטפלים
+// (למשל "🔔 בקשת ביטול חדשה - <שם לקוח>", "תזכורת תשלום - חוב של ...") ונכתבו
+// ל-Render logs דרך resend.ts `{ subject }` (חסימת שבת) ו-webhooks/resend
+// `{ data: { subject } }` (מייל נכנס). אין מפתח לגיטימי אחר בלוגים שמכיל
+// "subject" → אין over-redaction. שים לב: זה תופס מפתח בשם subject בלבד; טקסט
+// "subject" בתוך מחרוזת ה-message (כמו "Mark notifications by subject error")
+// אינו מושפע — הסניטיזציה פועלת על ה-context, לא על ה-message.
 const SENSITIVE_KEY_REGEX =
-  /password|secret|token|notes?|content|transcription|nationalId|phone|email|recipient|toNumber|(^|_)to$|signature|access_token|refresh_token|id_token|otp|codeHash|verificationCode|twoFaCode|recoveryCodes|twoFactorSecret|apiKey|api_key|cardcomToken|creditCard|cvv|pan|iban|swift|authorization|cookie|sessionId|sessionToken|emotionalMarkers|keyTopics|medicalHistory|aiAnalysis|recommendations|intakeNotes|initialDiagnosis|approachNotes|culturalContext|comprehensiveAnalysis|prompt|summary|transcript|description|freeText|firstName|lastName|address|birthDate|dob|dateOfBirth|idNumber|tax(?!onomy)|\bvat|salary|income|passport/i;
+  /password|secret|token|notes?|content|transcription|nationalId|phone|email|recipient|subject|toNumber|(^|_)to$|signature|access_token|refresh_token|id_token|otp|codeHash|verificationCode|twoFaCode|recoveryCodes|twoFactorSecret|apiKey|api_key|cardcomToken|creditCard|cvv|pan|iban|swift|authorization|cookie|sessionId|sessionToken|emotionalMarkers|keyTopics|medicalHistory|aiAnalysis|recommendations|intakeNotes|initialDiagnosis|approachNotes|culturalContext|comprehensiveAnalysis|prompt|summary|transcript|description|freeText|firstName|lastName|address|birthDate|dob|dateOfBirth|idNumber|tax(?!onomy)|\bvat|salary|income|passport/i;
 
 // M11.M1: filename keys מקבלים hash במקום redact מלא, כדי לאפשר debug של
 // "אותו קובץ עלה פעמיים" בלי לחשוף PII (שם מטופל בקובץ "שרה כהן_פגישה.pdf").

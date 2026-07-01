@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    logger.info(`Google Calendar connected for user ${userId} (${profile.email})`);
+    logger.info("Google Calendar connected", { userId, email: profile.email });
     return NextResponse.redirect(`${redirectUrl}&google_connected=true`);
   } catch (error) {
     logger.error("[GoogleCalendar] Callback error:", {

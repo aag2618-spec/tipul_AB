@@ -90,9 +90,10 @@ export default function ClientsByTherapistPage() {
         const data = (await res.json()) as TherapistWithClients[];
         if (cancelled) return;
         setTherapists(data);
-        // initialize all open
+        // ברירת מחדל סגור — כדי שיוצגו מלבני מטפלים קומפקטיים (2 בשורה),
+        // והמטופלים נפתחים רק בלחיצה על מטפל.
         const initOpen: Record<string, boolean> = {};
-        for (const t of data) initOpen[t.id] = true;
+        for (const t of data) initOpen[t.id] = false;
         setOpenIds(initOpen);
       } catch {
         if (!cancelled) toast.error("שגיאה ברשת");
@@ -149,7 +150,7 @@ export default function ClientsByTherapistPage() {
 
   // האם כל המטפלים המוצגים פתוחים — קובע אם הכפתור פותח או סוגר את הכל.
   const allOpen =
-    filtered.length > 0 && filtered.every((t) => openIds[t.id] ?? true);
+    filtered.length > 0 && filtered.every((t) => openIds[t.id] ?? false);
 
   function toggleOpen(id: string) {
     setOpenIds((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -258,15 +259,17 @@ export default function ClientsByTherapistPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-start">
           {filtered.map((t) => {
-            const isOpen = openIds[t.id] ?? true;
+            const isOpen = openIds[t.id] ?? false;
             const Icon = t.clinicRole === "OWNER" ? Crown : Stethoscope;
             const iconColor =
               t.clinicRole === "OWNER" ? "text-amber-400" : "text-blue-400";
             return (
+              // מטפל פתוח תופס שורה מלאה כדי שהמטופלים יוצגו 4 בשורה;
+              // מטפל סגור נשאר מלבן קומפקטי (2 בשורה).
+              <div key={t.id} className={isOpen ? "sm:col-span-2" : ""}>
               <Collapsible
-                key={t.id}
                 open={isOpen}
                 onOpenChange={() => toggleOpen(t.id)}
               >
@@ -304,45 +307,28 @@ export default function ClientsByTherapistPage() {
                           אין מטופלים פעילים אצל מטפל/ת זה/זו
                         </p>
                       ) : (
-                        <div className="border border-border rounded-lg overflow-hidden">
-                          {t.clients.map((c, idx) => (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                          {t.clients.map((c) => (
                             <Link
                               key={c.id}
                               href={`/dashboard/clients/${c.id}`}
-                              className={`block px-4 py-2 hover:bg-muted transition-colors ${
-                                idx !== t.clients.length - 1
-                                  ? "border-b border-border"
-                                  : ""
-                              }`}
+                              className="flex flex-col gap-1 rounded-lg border border-border px-3 py-2 hover:bg-muted hover:border-primary/40 transition-colors"
                             >
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <div className="flex items-center gap-2 min-w-0 flex-1">
-                                  <span className="font-medium text-sm truncate">
-                                    {clientDisplayName(c)}
-                                  </span>
-                                  {c.isQuickClient && (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-xs"
-                                    >
-                                      <Zap className="ml-1 h-3 w-3" />
-                                      מהיר
-                                    </Badge>
-                                  )}
-                                  {c.status === "WAITING" && (
-                                    <Badge className="bg-amber-500/20 text-amber-400 text-xs">
-                                      ממתין/ה
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                  {c.phone && (
-                                    <span dir="ltr">{c.phone}</span>
-                                  )}
-                                  <span>
-                                    {c._count.therapySessions} פגישות
-                                  </span>
-                                </div>
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="font-medium text-sm truncate">
+                                  {clientDisplayName(c)}
+                                </span>
+                                {c.isQuickClient && (
+                                  <Zap className="h-3 w-3 text-muted-foreground shrink-0" />
+                                )}
+                              </div>
+                              <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                                <span>{c._count.therapySessions} פגישות</span>
+                                {c.status === "WAITING" && (
+                                  <Badge className="bg-amber-500/20 text-amber-400 text-[10px] px-1 py-0">
+                                    ממתין/ה
+                                  </Badge>
+                                )}
                               </div>
                             </Link>
                           ))}
@@ -352,6 +338,7 @@ export default function ClientsByTherapistPage() {
                   </CollapsibleContent>
                 </Card>
               </Collapsible>
+              </div>
             );
           })}
         </div>

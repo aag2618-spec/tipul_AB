@@ -87,6 +87,14 @@ export interface Interpretation {
   complementary?: ComplementarySuggestion[];
   /** כיווני אבחנה מבדלת לשלילה (לא אבחנה) */
   differential?: string[];
+  /** תסמיני ליבה (DSM) — האם התסמינים המרכזיים נוכחים */
+  coreSymptoms?: string;
+  /** השפעה תפקודית — תחומי חיים שהתסמינים נוגעים בהם */
+  functionalImpact?: string[];
+  /** בקרת איכות — דגלי תקֵפות תשובה */
+  validity?: { flags: string[] };
+  /** פסיכו-חינוך — פסקה לשיתוף עם המטופל/משפחה */
+  psychoeducation?: string;
 }
 
 export interface ScoredItem {
@@ -656,10 +664,65 @@ export function interpretResponse(
       : [];
     base.complementary = spec.complementary ? spec.complementary(ctx) : [];
     base.differential = spec.differential ? spec.differential(ctx) : [];
+    base.coreSymptoms = spec.coreSymptoms ? spec.coreSymptoms(ctx) : undefined;
+    base.functionalImpact = spec.functionalImpact
+      ? spec.functionalImpact(ctx)
+      : [];
+    base.psychoeducation = spec.psychoeducation
+      ? spec.psychoeducation(ctx)
+      : undefined;
+    base.validity = computeValidity(template, response);
     base.narrative = buildNarrative(base, ctx);
   }
 
   return base;
+}
+
+// בקרת איכות — דגלי תקֵפות תשובה (גנרי; מוצג רק לשאלונים עם spec).
+function computeValidity(
+  template: TemplateLike,
+  response: ResponseLike
+): { flags: string[] } {
+  const flags: string[] = [];
+  const answers = response.answers || [];
+  const scored = template.questions.filter(
+    (q) => q.options && q.options.length > 0
+  );
+
+  // פריטים חסרים
+  let missing = 0;
+  template.questions.forEach((q, idx) => {
+    if (!q.options || q.options.length === 0) return;
+    const a = answers[idx];
+    if (!a || a.value === undefined || a.value === null) missing++;
+  });
+  if (missing > 0)
+    flags.push(
+      `${missing} פריטים ללא מענה — הציון הכולל עשוי להיות חלקי. כדאי להשלים.`
+    );
+
+  // דפוס מענה אחיד
+  const items = buildScoredItems(template, response);
+  if (scored.length >= 5 && items.length >= 5) {
+    const uniq = new Set(items.map((i) => i.value));
+    if (uniq.size === 1) {
+      const v = items[0].value;
+      if (v === 0)
+        flags.push(
+          "כל הפריטים סומנו 0 — ייתכן מיעוט בדיווח או היעדר מצוקה; כדאי לאמת מול ההתרשמות הקלינית."
+        );
+      else if (items.every((i) => i.value === i.max))
+        flags.push(
+          "כל הפריטים סומנו בערך המרבי — ייתכן ריבוי בדיווח או מצוקה קשה; כדאי לברר ולאמת."
+        );
+      else
+        flags.push(
+          "כל הפריטים סומנו באותו ערך — דפוס מענה אחיד שכדאי לאמת מול המטופל."
+        );
+    }
+  }
+
+  return { flags };
 }
 
 // פריטים מנוקדים מהתשובות הגולמיות (רק פריטים בעלי אפשרויות מנוקדות).

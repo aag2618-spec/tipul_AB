@@ -163,11 +163,8 @@ export function SessionPrepView({
                   </p>
                 )}
               </div>
-              <Button variant="outline" size="sm" asChild>
-                <Link href={`/dashboard/sessions/${nextSession.id}`}>
-                  פתח את הפגישה
-                </Link>
-              </Button>
+              {/* אין כפתור "פתח את הפגישה" — לפגישה עתידית דף הפגישה ריק (עורך
+                  הסיכום מוסתר), והמטפל ממילא נמצא כבר בדף ההכנה. */}
             </div>
           ) : (
             <div className="text-center py-6 text-muted-foreground">

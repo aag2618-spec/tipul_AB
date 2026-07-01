@@ -300,6 +300,8 @@ export default function TokenBookingPage() {
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
                     placeholder="______"
                     className="text-center text-2xl tracking-[0.5em] font-bold"
+                    // מפצה על דחיפת-השמאל של WebKit בטקסט ממורכז עם letter-spacing (חצי ה-tracking)
+                    style={{ textIndent: "0.25em" }}
                     dir="ltr"
                   />
                   {otpError && (<div className="bg-destructive/10 text-destructive rounded-lg p-3 text-sm flex items-center gap-2"><AlertCircle className="h-4 w-4 shrink-0" />{otpError}</div>)}
