@@ -14,7 +14,6 @@ import {
   BarChart3,
   Users,
   UsersRound,
-  UserPlus,
   ArrowLeftRight,
   UserMinus,
   Loader2,
@@ -85,14 +84,13 @@ const navItems: NavItem[] = [
   // אזהרת קרדיט-בעזיבה. exact:true כדי לא להיות active במקביל לתת-מסלולים.
   { href: "/clinic-admin/overview", label: "מבט ניהולי", icon: BarChart3, exact: true },
   // Phase 4 — exact: true כדי שלא יואר במקביל ל-/members/by-therapist.
-  { href: "/clinic-admin/members", label: "חברי קליניקה", icon: Users, exact: true },
+  { href: "/clinic-admin/members", label: "צוות הקליניקה", icon: Users, exact: true },
   // Phase 4 — תצוגה ייעודית: רשימת הלקוחות של כל מטפל. נמצא תחת
   // /members/by-therapist כדי לא לבלבל עם /members שמראה תפקידים.
   { href: "/clinic-admin/members/by-therapist", label: "מטופלים לפי מטפל", icon: UsersRound, secretaryWithTransfer: true },
   // מטלות צוות — הקצאת מטלות לעובדים ומעקב ביצוע. נגיש לבעלים, ולמזכיר/ה עם
   // canAssignTasks (secretaryWithAssign). השרת אוכף את ההרשאה ב-/api/clinic-admin/tasks.
   { href: "/clinic-admin/tasks", label: "מטלות צוות", icon: ClipboardList, secretaryWithAssign: true },
-  { href: "/clinic-admin/invitations", label: "צירוף לקליניקה", icon: UserPlus },
   // ניהול חדרי טיפול (שלב 2) — בעלת קליניקה בלבד (תשתית/קונפיגורציה).
   { href: "/clinic-admin/rooms", label: "ניהול חדרים", icon: DoorOpen },
   { href: "/clinic-admin/transfer", label: "העברת מטופל", icon: ArrowLeftRight, secretaryWithTransfer: true },
