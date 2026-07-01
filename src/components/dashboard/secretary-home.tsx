@@ -51,6 +51,7 @@ const STATUS_LABEL: Record<string, string> = {
   CANCELLED: "בוטלה",
   NO_SHOW: "לא הגיע/ה",
   PENDING_APPROVAL: "ממתינה לאישור",
+  PENDING_CANCELLATION: "ממתינה לביטול",
 };
 
 const STATUS_BADGE: Record<string, string> = {
@@ -59,6 +60,7 @@ const STATUS_BADGE: Record<string, string> = {
   CANCELLED: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
   NO_SHOW: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
   PENDING_APPROVAL: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  PENDING_CANCELLATION: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
 };
 
 const TYPE_LABEL: Record<string, string> = {
@@ -150,7 +152,7 @@ function SessionRow({ s, now }: { s: AdminSessionRow; now: Date }) {
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        {s.cancellationRequestedAt && s.status === "SCHEDULED" && (
+        {s.cancellationRequestedAt && s.status === "PENDING_CANCELLATION" && (
           <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
             בקשת ביטול
           </Badge>
@@ -247,12 +249,14 @@ async function getSecretaryData(scopeUser: ScopeUser) {
       select: SESSION_SELECT,
       orderBy: { startTime: "asc" },
     }),
-    // בקשות ביטול שממתינות לטיפול — פגישות עם בקשה שעדיין מתוכננות (כל תאריך).
+    // בקשות ביטול שממתינות לטיפול — פגישות שהמטופל ביקש לבטל וטרם טופלו. בקשת
+    // ביטול מעבירה את הפגישה ל-PENDING_CANCELLATION (לא נשארת SCHEDULED), ולכן
+    // חייבים לסנן לפי הסטטוס הזה — אחרת המלבן תמיד ריק.
     prisma.therapySession.count({
       where: {
         AND: [
           sessionWhere,
-          { cancellationRequestedAt: { not: null }, status: "SCHEDULED" },
+          { cancellationRequestedAt: { not: null }, status: "PENDING_CANCELLATION" },
         ],
       },
     }),
@@ -261,7 +265,7 @@ async function getSecretaryData(scopeUser: ScopeUser) {
       where: {
         AND: [
           sessionWhere,
-          { cancellationRequestedAt: { not: null }, status: "SCHEDULED" },
+          { cancellationRequestedAt: { not: null }, status: "PENDING_CANCELLATION" },
         ],
       },
       select: {
