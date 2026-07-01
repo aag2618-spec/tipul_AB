@@ -444,12 +444,27 @@ export async function POST(request: NextRequest) {
         const { date, time } = formatSessionDateTime(therapySession.startTime);
         // Store email in variable for type safety
         const clientEmail = therapySession.client.email;
+        // קישור "הפגישות שלי" לביטול ע"י המטופל — רק אם המטפל/ת מאפשר/ת ביטול-מטופל.
+        let manageUrl: string | undefined;
+        const allowCancel = settings ? settings.allowClientCancellation : true;
+        if (allowCancel && therapySession.clientId) {
+          const { ensureManageLinkToken, buildManageUrl } = await import("@/lib/appointment-manage-link");
+          const mtoken = await ensureManageLinkToken({
+            id: therapySession.clientId,
+            email: therapySession.client.email,
+            phone: null,
+            therapistId: therapySession.therapistId,
+            organizationId: therapySession.organizationId ?? null,
+          });
+          if (mtoken) manageUrl = buildManageUrl(mtoken);
+        }
         const { subject, html } = createSessionConfirmationEmail({
           clientName: therapySession.client.name,
           therapistName: therapySession.therapist.name || "המטפל/ת שלך",
           date,
           time,
           address: therapySession.location || undefined,
+          manageUrl,
           customization: settings ? {
             customGreeting: settings.customGreeting,
             customClosing: settings.customClosing,

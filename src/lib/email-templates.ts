@@ -19,6 +19,8 @@ export interface EmailTemplateData {
   dashboardLink?: string;
   address?: string;
   customization?: EmailCustomization | null;
+  // קישור לעמוד "הפגישות שלי" (ביטול תור ע"י המטופל). אם מועבר — מוצג כפתור.
+  manageUrl?: string;
 }
 
 function formatEmailDate(date: Date): string {
@@ -75,6 +77,18 @@ function getFooter(therapistName: string, customization?: EmailCustomization | n
   `;
 }
 
+// בלוק "צפייה וביטול תור" — מוצג רק אם הועבר manageUrl תקין (http/https).
+// הכפתור מוביל לעמוד "הפגישות שלי" (אימות OTP → רשימה → ביטול).
+function getManageBlock(manageUrl?: string): string {
+  const safe = safeHttpUrl(manageUrl);
+  if (!safe) return "";
+  return `
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="${safe}" style="display: inline-block; background: #0f766e; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: bold;">צפייה וביטול תור</a>
+    </div>
+    <p style="color: #666; font-size: 13px; text-align: center;">בכניסה יישלח קוד אימות קצר לאבטחת המידע שלך.</p>`;
+}
+
 // Base email template wrapper
 function wrapInEmailTemplate(content: string): string {
   return `
@@ -97,7 +111,7 @@ export function createSessionConfirmationEmail(data: EmailTemplateData) {
         <p style="margin: 8px 0;"><strong>👤 מטפל/ת:</strong> ${escapeHtml(data.therapistName)}</p>
         ${data.address ? `<p style="margin: 8px 0;"><strong>📍 כתובת:</strong> ${escapeHtml(data.address)}</p>` : ''}
       </div>
-      <p>לביטול או שינוי תור, נא ליצור קשר לפחות 24 שעות מראש.</p>
+      ${data.manageUrl ? getManageBlock(data.manageUrl) : `<p>לביטול או שינוי תור, נא ליצור קשר לפחות 24 שעות מראש.</p>`}
       ${getFooter(data.therapistName, data.customization)}
     `),
   };
@@ -115,7 +129,7 @@ export function create24HourReminderEmail(data: EmailTemplateData) {
         <p style="margin: 8px 0;"><strong>🕐 שעה:</strong> ${data.time}</p>
       </div>
       <p>נשמח לראותך!</p>
-      <p>לביטול, נא ליצור קשר בהקדם.</p>
+      ${data.manageUrl ? getManageBlock(data.manageUrl) : `<p>לביטול, נא ליצור קשר בהקדם.</p>`}
       ${getFooter(data.therapistName, data.customization)}
     `),
   };
@@ -138,7 +152,7 @@ export function createManualSessionReminderEmail(data: EmailTemplateData) {
         ${data.address ? `<p style="margin: 8px 0;"><strong>📍 כתובת:</strong> ${escapeHtml(data.address)}</p>` : ''}
       </div>
       <p>נשמח לראותך!</p>
-      <p>לביטול, נא ליצור קשר בהקדם.</p>
+      ${data.manageUrl ? getManageBlock(data.manageUrl) : `<p>לביטול, נא ליצור קשר בהקדם.</p>`}
       ${getFooter(data.therapistName, data.customization)}
     `),
   };

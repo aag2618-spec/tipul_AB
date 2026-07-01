@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { create24HourReminderEmail, formatSessionDateTime } from "@/lib/email-templates";
 import { sendSMSIfEnabled } from "@/lib/sms";
+import { ensureManageLinkToken, buildManageUrl } from "@/lib/appointment-manage-link";
 import { logger } from "@/lib/logger";
 import { isShabbatOrYomTov, wasShabbatInLastHours } from "@/lib/shabbat";
 import { checkCronAuth } from "@/lib/cron-auth";
@@ -79,6 +80,20 @@ export async function GET(request: NextRequest) {
 
       if (existingLog) continue;
 
+      // קישור "הפגישות שלי" לביטול ע"י המטופל — רק אם ביטול-מטופל מאופשר.
+      let manageUrl: string | undefined;
+      const allowCancel = settings ? settings.allowClientCancellation : true;
+      if (allowCancel && session.clientId) {
+        const mtoken = await ensureManageLinkToken({
+          id: session.clientId,
+          email: session.client.email,
+          phone: session.client.phone ?? null,
+          therapistId: session.therapistId,
+          organizationId: session.organizationId ?? null,
+        });
+        if (mtoken) manageUrl = buildManageUrl(mtoken);
+      }
+
       const { date, time } = formatSessionDateTime(session.startTime);
       const { subject, html } = create24HourReminderEmail({
         clientName: session.client.name,
@@ -86,6 +101,7 @@ export async function GET(request: NextRequest) {
         date,
         time,
         address: session.location || undefined,
+        manageUrl,
         customization: settings ? {
           customGreeting: settings.customGreeting,
           customClosing: settings.customClosing,
@@ -145,12 +161,17 @@ export async function GET(request: NextRequest) {
           userId: session.therapistId,
           phone: session.client.phone,
           template: settings?.templateReminder24hSMS,
-          defaultTemplate: "שלום {שם}, תזכורת לפגישה מחר ({יום}) ב-{שעה}",
+          // כשביטול-מטופל מאופשר — מוסיפים שורת קישור לתבנית ברירת המחדל.
+          // תבנית מותאמת-אישית של המטפל תציג קישור רק אם תכלול {קישור}.
+          defaultTemplate: manageUrl
+            ? "שלום {שם}, תזכורת לפגישה מחר ({יום}) ב-{שעה}. לצפייה/ביטול: {קישור}"
+            : "שלום {שם}, תזכורת לפגישה מחר ({יום}) ב-{שעה}",
           placeholders: {
             שם: session.client.firstName || session.client.name,
             תאריך: date,
             שעה: time,
             יום: dayName,
+            קישור: manageUrl || "",
           },
           settingKey: "sendReminder24hSMS",
           sessionId: session.id,

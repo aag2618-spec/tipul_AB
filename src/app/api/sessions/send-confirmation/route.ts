@@ -111,6 +111,21 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // קישור "הפגישות שלי" לביטול ע"י המטופל — רק אם ביטול-מטופל מאופשר.
+    let manageUrl: string | undefined;
+    const allowCancel = settings ? settings.allowClientCancellation : true;
+    if (allowCancel && therapySession.clientId) {
+      const { ensureManageLinkToken, buildManageUrl } = await import("@/lib/appointment-manage-link");
+      const mtoken = await ensureManageLinkToken({
+        id: therapySession.clientId,
+        email: therapySession.client.email,
+        phone: therapySession.client.phone ?? null,
+        therapistId: therapySession.therapistId,
+        organizationId: therapySession.organizationId ?? null,
+      });
+      if (mtoken) manageUrl = buildManageUrl(mtoken);
+    }
+
     const { date, time } = formatSessionDateTime(therapySession.startTime);
     const { subject, html } = createSessionConfirmationEmail({
       clientName: therapySession.client.name,
@@ -118,6 +133,7 @@ export async function POST(request: NextRequest) {
       date,
       time,
       address: therapySession.location || undefined,
+      manageUrl,
       customization: settings ? {
         customGreeting: settings.customGreeting,
         customClosing: settings.customClosing,
